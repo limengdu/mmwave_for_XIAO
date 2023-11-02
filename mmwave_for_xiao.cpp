@@ -1,30 +1,47 @@
-#include "HLKModuleConfig.h"
+#include "mmwave_for_xiao.h"
+
+
 #define BUFFER_SIZE 256 // 串口缓冲区大小
 
-HLKModuleConfig::HLKModuleConfig(HardwareSerial &serial, SoftwareSerial &debugSerial) : _serial(serial), _debugSerial(debugSerial),
-                                                                                        bufferIndex(0), receiveStartTime(0), isInATMode(0), bufferIndex_2410(0)
+// Seeed_HSP24::Seeed_HSP24(SoftwareSerial &serial, HardwareSerial &debugSerial) : _serial(serial), _debugSerial(debugSerial),
+//                                                                                         bufferIndex(0), receiveStartTime(0), isInATMode(0), bufferIndex_hsp24(0)
+// {
+// }
+
+Seeed_HSP24::Seeed_HSP24(Stream &serial)
+    : _serial(&serial),
+    _debugSerial(nullptr),
+    bufferIndex(0),
+    receiveStartTime(0),
+    isInATMode(0),
+    bufferIndex_hsp24(0)
 {
 }
 
-HLKModuleConfig::HLKModuleConfig(HardwareSerial &serial) : _serial(serial), bufferIndex(0), receiveStartTime(0), isInATMode(0),
-                                                           bufferIndex_2410(0)
+Seeed_HSP24::Seeed_HSP24(Stream &serial, Stream &debugSerial)
+    : _serial(&serial),
+    _debugSerial(&debugSerial),
+    bufferIndex(0),
+    receiveStartTime(0),
+    isInATMode(0),
+    bufferIndex_hsp24(0)
 {
 }
 
 // B35
-int HLKModuleConfig::enterATMode()
+int Seeed_HSP24::enterATMode()
 {
 
-    _serial.print("+++"); // 发送指令+++
+    _serial->print("+++"); // 发送指令+++
 
     unsigned long startTime = millis(); // 记录开始时间
 
     while (true)
     {
         // 检查是否有数据可用于接收
-        while (_serial.available())
+        while (_serial->available())
         {
-            char receivedChar = _serial.read();
+            char receivedChar = _serial->read();
             buffer[bufferIndex] = receivedChar;
             bufferIndex++;
 
@@ -37,13 +54,13 @@ int HLKModuleConfig::enterATMode()
         {
             if (this->bufferIndex == 1 && buffer[0] == 'a')
             {
-                _serial.print('a');
+                _serial->print('a');
             }
             else if (buffer[0] == 'O' && buffer[1] == 'K')
             { // 进入at模式
-                if (_debugSerial.isListening())
+                if (_debugSerial->available() > 0)
                 {
-                    _debugSerial.println("Enter AT Mode Success!");
+                    _debugSerial->println("Enter AT Mode Success!");
                 }
 
                 isInATMode = 1;
@@ -73,18 +90,18 @@ int HLKModuleConfig::enterATMode()
     return 0; // 未成功进入AT模式
 }
 
-int HLKModuleConfig::exitATMode()
+int Seeed_HSP24::exitATMode()
 {
-    _serial.println("at+reconn=1");
+    _serial->println("at+reconn=1");
 
     unsigned long startTime = millis(); // 记录开始时间
 
     while (true)
     {
         // 检查是否有数据可用于接收
-        while (_serial.available())
+        while (_serial->available())
         {
-            char receivedChar = _serial.read(); //   接收串口数据
+            char receivedChar = _serial->read(); //   接收串口数据
             buffer[bufferIndex] = receivedChar; //   接收到的数据都存入缓冲区里
             bufferIndex++;
 
@@ -99,9 +116,9 @@ int HLKModuleConfig::exitATMode()
             char *found = strstr(this->buffer, "ok");
             if (found != NULL)
             {
-                if (_debugSerial.isListening())
+                if (_debugSerial->available() > 0)
                 {
-                    _debugSerial.println("Setting Success!");
+                    _debugSerial->println("Setting Success!");
                 }
 
                 // 清空缓冲区和索引
@@ -111,12 +128,12 @@ int HLKModuleConfig::exitATMode()
             }
             else
             {
-                if (_debugSerial.isListening())
+                if (_debugSerial->available() > 0)
                 {
                     // 发送缓冲区中的数据到另一个串口
                     for (int i = 0; i < this->bufferIndex; i++)
                     {
-                        _debugSerial.print(buffer[i]);
+                        _debugSerial->print(buffer[i]);
                     }
                 }
 
@@ -134,16 +151,16 @@ int HLKModuleConfig::exitATMode()
     }
 }
 
-int HLKModuleConfig::checkBuffer()
+int Seeed_HSP24::checkBuffer()
 {
     unsigned long startTime = millis(); // 记录开始时间
 
     while (true)
     {
         // 检查是否有数据可用于接收
-        while (_serial.available())
+        while (_serial->available())
         {
-            char receivedChar = _serial.read(); //   接收串口数据
+            char receivedChar = _serial->read(); //   接收串口数据
             buffer[bufferIndex] = receivedChar; //   接收到的数据都存入缓冲区里
             bufferIndex++;
 
@@ -158,9 +175,9 @@ int HLKModuleConfig::checkBuffer()
             char *found = strstr(this->buffer, "ok");
             if (found != NULL)
             {
-                if (_debugSerial.isListening())
+                if (_debugSerial->available() > 0)
                 {
-                    _debugSerial.println("Setting Success!");
+                    _debugSerial->println("Setting Success!");
                 }
 
                 // 清空缓冲区和索引
@@ -171,12 +188,12 @@ int HLKModuleConfig::checkBuffer()
             }
             else
             {
-                if (_debugSerial.isListening())
+                if (_debugSerial->available() > 0)
                 {
                     // 发送缓冲区中的数据到另一个串口
                     for (int i = 0; i < this->bufferIndex; i++)
                     {
-                        _debugSerial.print(buffer[i]);
+                        _debugSerial->print(buffer[i]);
                     }
                 }
 
@@ -195,28 +212,28 @@ int HLKModuleConfig::checkBuffer()
     }
 }
 
-int HLKModuleConfig::sendATCommandWithExit(String command)
+int Seeed_HSP24::sendATCommandWithExit(String command)
 {
-    _serial.println(command);
+    _serial->println(command);
     int ret = checkBuffer();
     exitATMode();
     return ret;
 }
 
-int HLKModuleConfig::sendATCommand(String command)
+int Seeed_HSP24::sendATCommand(String command)
 {
-    _serial.println(command);
+    _serial->println(command);
     int ret = checkBuffer();
     return ret;
 }
 
-int HLKModuleConfig::getVer()
+int Seeed_HSP24::getVer()
 {
     enterATMode(); // 进入AT模式
     return sendATCommandWithExit("at+ver=?");
 }
 
-int HLKModuleConfig::setNetwork(String ssid, String password)
+int Seeed_HSP24::setNetwork(String ssid, String password)
 {
     enterATMode(); // 进入AT模式
     sendATCommand("at+netmode=2");
@@ -225,44 +242,44 @@ int HLKModuleConfig::setNetwork(String ssid, String password)
     return 1;
 }
 
-// 2410
-const byte HLKModuleConfig::frameStart_2410[HLKModuleConfig::FRAME_START_SIZE_2410] = {0xF4, 0xF3, 0xF2, 0xF1};
-const byte HLKModuleConfig::frameEnd_2410[HLKModuleConfig::FRAME_END_SIZE_2410] = {0xF8, 0xF7, 0xF6, 0xF5};
+Seeed_HSP24::TargetStatus status = Seeed_HSP24::TargetStatus::NoTarget;
 
-const byte HLKModuleConfig::frameAskStart_2410[HLKModuleConfig::FRAME_START_SIZE_2410] = {0xFD, 0xFC, 0xFB, 0xFA};
-const byte HLKModuleConfig::frameAskEnd_2410[HLKModuleConfig::FRAME_END_SIZE_2410] = {0x04, 0x03, 0x02, 0x01};
-HLKModuleConfig::TargetStatus_2410 status = HLKModuleConfig::TargetStatus_2410::NoTarget;
+const byte Seeed_HSP24::frameStart[Seeed_HSP24::FRAME_START_SIZE] = {0xF4, 0xF3, 0xF2, 0xF1};
+const byte Seeed_HSP24::frameEnd[Seeed_HSP24::FRAME_END_SIZE] = {0xF8, 0xF7, 0xF6, 0xF5};
+const byte Seeed_HSP24::frameAskStart[Seeed_HSP24::FRAME_START_SIZE] = {0xFD, 0xFC, 0xFB, 0xFA};
+const byte Seeed_HSP24::frameAskEnd[Seeed_HSP24::FRAME_END_SIZE] = {0x04, 0x03, 0x02, 0x01};
 
-HLKModuleConfig::RadarStatus_2410 HLKModuleConfig::getStatus_2410()
+Seeed_HSP24::RadarStatus Seeed_HSP24::getStatus()
 {
 
-    bufferIndex_2410 = 0; // 重置缓冲区索引
-    HLKModuleConfig::RadarStatus_2410 radarStatus_2410;
+    bufferIndex_hsp24 = 0; // 重置缓冲区索引
+    Seeed_HSP24::RadarStatus radarStatus;
     const int MIN_FRAME_LENGTH_BASE = 23;        // 最小帧长度,基本上报
     const int MIN_FRAME_LENGTH_ENGINEERING = 45; // 最小帧长度,工程上报
 
     // 从串口读取数据并存储到buffer中
-    while (_serial.available() && bufferIndex_2410 < BUFFER_SIZE)
+    while (_serial->available() && bufferIndex_hsp24 < BUFFER_SIZE)
     {
-        buffer_2410[bufferIndex_2410] = _serial.read();
-        bufferIndex_2410++;
+        buffer_hsp24[bufferIndex_hsp24] = _serial->read();
+        // _debugSerial->println(buffer_hsp24[bufferIndex_hsp24]);
+        bufferIndex_hsp24++;
 
         // 检查是否收到完整的帧
-        int startIndex = findSequence(buffer_2410, bufferIndex_2410, frameStart_2410, 4);
-        int endIndex = findSequence(buffer_2410, bufferIndex_2410, frameEnd_2410, 4);
+        int startIndex = findSequence(buffer_hsp24, bufferIndex_hsp24, frameStart, 4);
+        int endIndex = findSequence(buffer_hsp24, bufferIndex_hsp24, frameEnd, 4);
 
         // 检查是否收到完整的帧
-        int startAskIndex = findSequence(buffer_2410, bufferIndex_2410, frameAskStart_2410, 4);
-        int endAskIndex = findSequence(buffer_2410, bufferIndex_2410, frameAskEnd_2410, 4);
+        int startAskIndex = findSequence(buffer_hsp24, bufferIndex_hsp24, frameAskStart, 4);
+        int endAskIndex = findSequence(buffer_hsp24, bufferIndex_hsp24, frameAskEnd, 4);
 
-        uint8_t finalBuffer_2410[(endIndex + 4) - startIndex];
+        uint8_t finalBuffer[(endIndex + 4) - startIndex];
         // 接收到完整帧
         if (startIndex != -1 && endIndex != -1 && endIndex > startIndex)
         {
             uint8_t tmp_buffer[(endIndex + 4) - startIndex];
             for (int i = startIndex; i < endIndex + 4; i++)
             {
-                tmp_buffer[i] = buffer_2410[i];
+                tmp_buffer[i] = buffer_hsp24[i];
             }
             // 解析数组
             int lastFrameStart = -1;
@@ -284,37 +301,37 @@ HLKModuleConfig::RadarStatus_2410 HLKModuleConfig::getStatus_2410()
                 int j = 0;
                 for (int i = lastFrameStart; i <= lastFrameEnd + 3; i++)
                 {
-                    finalBuffer_2410[j++] = tmp_buffer[i];
+                    finalBuffer[j++] = tmp_buffer[i];
                 }
             }
             else
             {
-                // 如果帧不完整或太短，则清空finalBuffer_2410
-                memset(finalBuffer_2410, 0, sizeof(finalBuffer_2410));
-                return radarStatus_2410;
+                // 如果帧不完整或太短，则清空finalBuffer
+                memset(finalBuffer, 0, sizeof(finalBuffer));
+                return radarStatus;
             }
             // 解析数组结束
             // 获取数组长度
             int finalBufferSize = (lastFrameEnd + 4) - lastFrameStart;
 
             // 判断第六位是工程模式数据还是基本模式数据
-            int mode = finalBuffer_2410[6];
-            radarStatus_2410.radarMode_2410 = mode;
+            int mode = finalBuffer[6];
+            radarStatus.radarMode = mode;
             if (mode == 1) // 工程模式上报
             {
                 if (finalBufferSize > 45)
                 {
-                    return radarStatus_2410;
+                    return radarStatus;
                 }
                 else
                 {
-                    radarStatus_2410.moveSetDistance = finalBuffer_2410[17];   // 最远运动距离门
-                    radarStatus_2410.staticSetDistance = finalBuffer_2410[18]; // 最远静止距离门
-                    radarStatus_2410.photosensitive = finalBuffer_2410[37];    // 光敏
+                    radarStatus.moveSetDistance = finalBuffer[17];   // 最远运动距离门
+                    radarStatus.staticSetDistance = finalBuffer[18]; // 最远静止距离门
+                    radarStatus.photosensitive = finalBuffer[37];    // 光敏
                     for (int i = 0; i < 9; i++)                                // 运动和静止每个距离门的能量值
                     {
-                        radarStatus_2410.radarMovePower.moveGate[i] = finalBuffer_2410[i + 19];
-                        radarStatus_2410.radarStaticPower.staticGate[i] = finalBuffer_2410[i + 28];
+                        radarStatus.radarMovePower.moveGate[i] = finalBuffer[i + 19];
+                        radarStatus.radarStaticPower.staticGate[i] = finalBuffer[i + 28];
                     }
                 }
             }
@@ -322,62 +339,62 @@ HLKModuleConfig::RadarStatus_2410 HLKModuleConfig::getStatus_2410()
             {
                 if (finalBufferSize > 23)
                 {
-                    return radarStatus_2410;
+                    return radarStatus;
                 }
             }
 
             // 提取雷达上报状态
-            if (_debugSerial.isListening())
+            if (_debugSerial->available() > 0)
             {
-                _debugSerial.println(finalBuffer_2410[8]);
+                _debugSerial->println(finalBuffer[8]);
             }
-            status = static_cast<HLKModuleConfig::TargetStatus_2410>(finalBuffer_2410[8]);
-            radarStatus_2410.targetStatus = static_cast<HLKModuleConfig::TargetStatus_2410>(finalBuffer_2410[8]);
+            status = static_cast<Seeed_HSP24::TargetStatus>(finalBuffer[8]);
+            radarStatus.targetStatus = static_cast<Seeed_HSP24::TargetStatus>(finalBuffer[8]);
 
             // 提取目标距离
-            int distance = finalBuffer_2410[15] | (finalBuffer_2410[16] << 8); // 小端序解析
-            if (_debugSerial.isListening())
+            int distance = finalBuffer[15] | (finalBuffer[16] << 8); // 小端序解析
+            if (_debugSerial->available() > 0)
             {
-                _debugSerial.println("distance: " + String(distance));
+                _debugSerial->println("distance: " + String(distance));
             }
-            radarStatus_2410.distance = distance;
+            radarStatus.distance = distance;
 
-            // _debugSerial.print("nature: ");
+            // _debugSerial->print("nature: ");
             // for (int i = 0; i < sizeof(tmp_buffer); i++)
             // {
             //     if (tmp_buffer[i] < 0x10)
-            //         _debugSerial.print("0");
-            //     _debugSerial.print(tmp_buffer[i], HEX);
-            //     _debugSerial.print(" ");
+            //         _debugSerial->print("0");
+            //     _debugSerial->print(tmp_buffer[i], HEX);
+            //     _debugSerial->print(" ");
             // }
-            // _debugSerial.println();
+            // _debugSerial->println();
 
-            // _debugSerial.print("Payload: ");
+            // _debugSerial->print("Payload: ");
             // for (int i = 0; i < finalBufferSize; i++)
             // {
-            //     if (finalBuffer_2410[i] < 0x10)
-            //         _debugSerial.print("0");
-            //     _debugSerial.print(finalBuffer_2410[i], HEX);
-            //     _debugSerial.print(" ");
+            //     if (finalBuffer[i] < 0x10)
+            //         _debugSerial->print("0");
+            //     _debugSerial->print(finalBuffer[i], HEX);
+            //     _debugSerial->print(" ");
             // }
-            // _debugSerial.println();
+            // _debugSerial->println();
 
             // 清除缓冲区
-            int bytesToMove = bufferIndex_2410 - (endIndex + 4);
+            int bytesToMove = bufferIndex_hsp24 - (endIndex + 4);
             for (int i = 0; i < bytesToMove; i++)
             {
-                buffer_2410[i] = buffer_2410[endIndex + 4 + i];
+                buffer_hsp24[i] = buffer_hsp24[endIndex + 4 + i];
             }
-            bufferIndex_2410 = bytesToMove;
+            bufferIndex_hsp24 = bytesToMove;
 
-            return radarStatus_2410;
+            return radarStatus;
         }
         else if (startAskIndex != -1 && endAskIndex != -1 && endAskIndex > startAskIndex)
         {
             uint8_t tmp_buffer[(endAskIndex + 4) - startAskIndex];
             for (int i = startAskIndex; i < endAskIndex + 4; i++)
             {
-                tmp_buffer[i] = buffer_2410[i];
+                tmp_buffer[i] = buffer_hsp24[i];
             }
 
             // 解析数组
@@ -400,68 +417,68 @@ HLKModuleConfig::RadarStatus_2410 HLKModuleConfig::getStatus_2410()
                 int j = 0;
                 for (int i = lastFrameStart; i <= lastFrameEnd + 3; i++)
                 {
-                    finalBuffer_2410[j++] = tmp_buffer[i];
+                    finalBuffer[j++] = tmp_buffer[i];
                 }
             }
             else
             {
-                // 如果帧不完整或太短，则清空finalBuffer_2410
-                memset(finalBuffer_2410, 0, sizeof(finalBuffer_2410));
-                // return HLKModuleConfig::AskStatus_2410::Error;
-                return radarStatus_2410;
+                // 如果帧不完整或太短，则清空finalBuffer
+                memset(finalBuffer, 0, sizeof(finalBuffer));
+                // return Seeed_HSP24::AskStatus::Error;
+                return radarStatus;
             }
             // 解析数组结束
 
             // 获取数组长度
             int finalBufferSize = (lastFrameEnd + 4) - lastFrameStart;
 
-            // _debugSerial.print("nature: ");
+            // _debugSerial->print("nature: ");
             // for (int i = 0; i < sizeof(tmp_buffer); i++)
             // {
             //     if (tmp_buffer[i] < 0x10)
-            //         _debugSerial.print("0");
-            //     _debugSerial.print(tmp_buffer[i], HEX);
-            //     _debugSerial.print(" ");
+            //         _debugSerial->print("0");
+            //     _debugSerial->print(tmp_buffer[i], HEX);
+            //     _debugSerial->print(" ");
             // }
-            // _debugSerial.println();
+            // _debugSerial->println();
 
-            _debugSerial.print("Payload: ");
+            _debugSerial->print("Payload: ");
             for (int i = 0; i < finalBufferSize; i++)
             {
-                if (finalBuffer_2410[i] < 0x10)
-                    _debugSerial.print("0");
-                _debugSerial.print(finalBuffer_2410[i], HEX);
-                _debugSerial.print(" ");
+                if (finalBuffer[i] < 0x10)
+                    _debugSerial->print("0");
+                _debugSerial->print(finalBuffer[i], HEX);
+                _debugSerial->print(" ");
             }
-            _debugSerial.println();
+            _debugSerial->println();
 
             // 清除缓冲区
-            int bytesToMove = bufferIndex_2410 - (endAskIndex + 4);
+            int bytesToMove = bufferIndex_hsp24 - (endAskIndex + 4);
             for (int i = 0; i < bytesToMove; i++)
             {
-                buffer_2410[i] = buffer_2410[endAskIndex + 4 + i];
+                buffer_hsp24[i] = buffer_hsp24[endAskIndex + 4 + i];
             }
-            bufferIndex_2410 = bytesToMove;
+            bufferIndex_hsp24 = bytesToMove;
 
-            if (finalBuffer_2410[8] == 0)
+            if (finalBuffer[8] == 0)
             {
-                // return HLKModuleConfig::AskStatus_2410::Success;
-                return radarStatus_2410;
+                // return Seeed_HSP24::AskStatus::Success;
+                return radarStatus;
             }
             else
             {
-                // return HLKModuleConfig::AskStatus_2410::Error;
-                return radarStatus_2410;
+                // return Seeed_HSP24::AskStatus::Error;
+                return radarStatus;
             }
         }
     }
-    return radarStatus_2410;
+    return radarStatus;
 }
 
-HLKModuleConfig::DataResult_2410 HLKModuleConfig::sendCommand_2410(const byte *sendData, int sendDataLength)
+Seeed_HSP24::DataResult Seeed_HSP24::sendCommand(const byte *sendData, int sendDataLength)
 {
-    bufferIndex_2410 = 0; // 重置缓冲区索引
-    HLKModuleConfig::DataResult_2410 dataResult_2410;
+    bufferIndex_hsp24 = 0; // 重置缓冲区索引
+    Seeed_HSP24::DataResult dataResult;
 
     /*
         应该是写一个while true用户发送指令的时候就进入，一直循环接收，直到接收到符合要求的回复包再退出循环，如果超过2秒没有
@@ -472,46 +489,46 @@ HLKModuleConfig::DataResult_2410 HLKModuleConfig::sendCommand_2410(const byte *s
     unsigned long lastSendTime = 0;          // 记录上一次发送的时间
     const unsigned long sendInterval = 1000; // 发送间隔，1000ms即1秒
                                              // 清空缓冲区
-    memset(buffer_2410, 0, sizeof(buffer_2410));
-    bufferIndex_2410 = 0;
+    memset(buffer_hsp24, 0, sizeof(buffer_hsp24));
+    bufferIndex_hsp24 = 0;
     while (true)
     {
         if (millis() - lastSendTime >= sendInterval)
         {
             // 串口发送使能指令
-            _serial.write(sendData, sendDataLength);
+            _serial->write(sendData, sendDataLength);
             tryTimes++;
             lastSendTime = millis(); // 更新发送时间
-            if (_debugSerial.isListening())
+            if (_debugSerial->available() > 0)
             {
-                _debugSerial.println("times: " + String(tryTimes));
+                _debugSerial->println("times: " + String(tryTimes));
             }
         }
 
         // 从串口读取数据并存储到buffer中
-        while (_serial.available() && bufferIndex_2410 < BUFFER_SIZE)
+        while (_serial->available() && bufferIndex_hsp24 < BUFFER_SIZE)
         {
-            buffer_2410[bufferIndex_2410] = _serial.read();
-            bufferIndex_2410++;
+            buffer_hsp24[bufferIndex_hsp24] = _serial->read();
+            bufferIndex_hsp24++;
 
             // 检查是否收到完整的帧
-            int startIndex = findSequence(buffer_2410, bufferIndex_2410, frameAskStart_2410, 4);
-            int endIndex = findSequence(buffer_2410, bufferIndex_2410, frameAskEnd_2410, 4);
+            int startIndex = findSequence(buffer_hsp24, bufferIndex_hsp24, frameAskStart, 4);
+            int endIndex = findSequence(buffer_hsp24, bufferIndex_hsp24, frameAskEnd, 4);
 
-            // static uint8_t finalBuffer_2410[128];
-            uint8_t *finalBuffer_2410 = nullptr;
+            // static uint8_t finalBuffer[128];
+            uint8_t *finalBuffer = nullptr;
             // 接收到完整帧
             if (startIndex != -1 && endIndex != -1 && endIndex > startIndex)
             {
                 uint8_t tmp_buffer[(endIndex + 4) - startIndex];
-                if (_debugSerial.isListening())
+                if (_debugSerial->available() > 0)
                 {
-                    _debugSerial.println("start: " + String(startIndex) + "  end: " + String(endIndex));
+                    _debugSerial->println("start: " + String(startIndex) + "  end: " + String(endIndex));
                 }
                 int j = 0;
                 for (int i = startIndex; i < endIndex + 4; i++)
                 {
-                    tmp_buffer[j++] = buffer_2410[i];
+                    tmp_buffer[j++] = buffer_hsp24[i];
                 }
                 // 解析数组
                 int lastFrameStart = -1;
@@ -529,45 +546,45 @@ HLKModuleConfig::DataResult_2410 HLKModuleConfig::sendCommand_2410(const byte *s
                     }
                 }
 
-                finalBuffer_2410 = new uint8_t[(endIndex + 4) - startIndex];
+                finalBuffer = new uint8_t[(endIndex + 4) - startIndex];
                 if (lastFrameStart != -1 && lastFrameEnd != -1 && lastFrameStart < lastFrameEnd)
                 {
                     int j = 0;
                     for (int i = lastFrameStart; i <= lastFrameEnd + 3; i++)
                     {
-                        finalBuffer_2410[j++] = tmp_buffer[i];
+                        finalBuffer[j++] = tmp_buffer[i];
                     }
-                    // _debugSerial.println("finnsh!!!");
-                    dataResult_2410.length = (endIndex + 4) - startIndex;
-                    dataResult_2410.resultBuffer = finalBuffer_2410;
+                    // _debugSerial->println("finnsh!!!");
+                    dataResult.length = (endIndex + 4) - startIndex;
+                    dataResult.resultBuffer = finalBuffer;
 
-                    if (_debugSerial.isListening())
+                    if (_debugSerial->available() > 0)
                     {
-                        _debugSerial.println("resultBuffer: ");
+                        _debugSerial->println("resultBuffer: ");
 
-                        for (int i = 0; i < dataResult_2410.length; i++)
+                        for (int i = 0; i < dataResult.length; i++)
                         {
-                            if (dataResult_2410.resultBuffer[i] < 0x10)
-                                _debugSerial.print("0");
-                            _debugSerial.print(dataResult_2410.resultBuffer[i], HEX); // 打印每一个byte，您可以根据需要调整格式
-                            _debugSerial.print(" ");
+                            if (dataResult.resultBuffer[i] < 0x10)
+                                _debugSerial->print("0");
+                            _debugSerial->print(dataResult.resultBuffer[i], HEX); // 打印每一个byte，您可以根据需要调整格式
+                            _debugSerial->print(" ");
                         }
-                        _debugSerial.println("");
+                        _debugSerial->println("");
 
-                        _debugSerial.println("length: " + String(dataResult_2410.length));
+                        _debugSerial->println("length: " + String(dataResult.length));
                     }
-                    return dataResult_2410;
+                    return dataResult;
                 }
                 else
                 {
-                    // 如果帧不完整或太短，则清空finalBuffer_2410
-                    memset(finalBuffer_2410, -1, sizeof(finalBuffer_2410));
-                    if (_debugSerial.isListening())
+                    // 如果帧不完整或太短，则清空finalBuffer
+                    memset(finalBuffer, -1, sizeof(finalBuffer));
+                    if (_debugSerial->available() > 0)
                     {
-                        _debugSerial.println("error!!!");
+                        _debugSerial->println("error!!!");
                     }
-                    dataResult_2410.length = -1;
-                    return dataResult_2410;
+                    dataResult.length = -1;
+                    return dataResult;
                 }
                 // 解析数组结束
 
@@ -575,65 +592,65 @@ HLKModuleConfig::DataResult_2410 HLKModuleConfig::sendCommand_2410(const byte *s
                 int finalBufferSize = (lastFrameEnd + 4) - lastFrameStart;
 
                 // 清除缓冲区
-                int bytesToMove = bufferIndex_2410 - (endIndex + 4);
+                int bytesToMove = bufferIndex_hsp24 - (endIndex + 4);
                 for (int i = 0; i < bytesToMove; i++)
                 {
-                    buffer_2410[i] = buffer_2410[endIndex + 4 + i];
+                    buffer_hsp24[i] = buffer_hsp24[endIndex + 4 + i];
                 }
-                bufferIndex_2410 = bytesToMove;
+                bufferIndex_hsp24 = bytesToMove;
             }
         }
 
         if (millis() - startTime > 6000 || tryTimes > 6) // 超过3秒等待时间
         {
-            // return HLKModuleConfig::AskStatus_2410::Error; // 超时，未成功进入AT模式
-            dataResult_2410.length = -1;
-            return dataResult_2410;
+            // return Seeed_HSP24::AskStatus::Error; // 超时，未成功进入AT模式
+            dataResult.length = -1;
+            return dataResult;
         }
     }
 }
 
-HLKModuleConfig::AskStatus_2410 HLKModuleConfig::enableConfigMode_2410()
+Seeed_HSP24::AskStatus Seeed_HSP24::enableConfigMode()
 {
-    HLKModuleConfig::DataResult_2410 dataResult;
+    Seeed_HSP24::DataResult dataResult;
     byte sendData[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x04, 0x00, 0xFF, 0x00, 0x01, 0x00, 0x04, 0x03, 0x02, 0x01};
     int sendDataLength = sizeof(sendData);
-    dataResult = sendCommand_2410(sendData, sendDataLength);
+    dataResult = sendCommand(sendData, sendDataLength);
     if (dataResult.resultBuffer[8] == 0)
     {
-        return HLKModuleConfig::AskStatus_2410::Success;
+        return Seeed_HSP24::AskStatus::Success;
     }
     else
     {
-        return HLKModuleConfig::AskStatus_2410::Error;
+        return Seeed_HSP24::AskStatus::Error;
     }
 }
 
-HLKModuleConfig::AskStatus_2410 HLKModuleConfig::disableConfigMode_2410()
+Seeed_HSP24::AskStatus Seeed_HSP24::disableConfigMode()
 {
-    HLKModuleConfig::DataResult_2410 dataResult;
+    Seeed_HSP24::DataResult dataResult;
     byte sendData[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0xFE, 0x00, 0x04, 0x03, 0x02, 0x01};
     int sendDataLength = sizeof(sendData);
-    dataResult = sendCommand_2410(sendData, sendDataLength);
+    dataResult = sendCommand(sendData, sendDataLength);
     if (dataResult.resultBuffer[8] == 0)
     {
-        return HLKModuleConfig::AskStatus_2410::Success;
+        return Seeed_HSP24::AskStatus::Success;
     }
     else
     {
-        return HLKModuleConfig::AskStatus_2410::Error;
+        return Seeed_HSP24::AskStatus::Error;
     }
 }
 
-String HLKModuleConfig::getVersion_2410()
+String Seeed_HSP24::getVersion()
 {
-    HLKModuleConfig::DataResult_2410 dataResult;
+    Seeed_HSP24::DataResult dataResult;
     byte sendData[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0xA0, 0x00, 0x04, 0x03, 0x02, 0x01};
     int sendDataLength = sizeof(sendData);
 
-    if (enableConfigMode_2410() == HLKModuleConfig::AskStatus_2410::Success)
+    if (enableConfigMode() == Seeed_HSP24::AskStatus::Success)
     {
-        dataResult = sendCommand_2410(sendData, sendDataLength);
+        dataResult = sendCommand(sendData, sendDataLength);
 
         if (dataResult.resultBuffer[7] == 0x01 && dataResult.resultBuffer[8] == 0x00)
         {
@@ -644,13 +661,13 @@ String HLKModuleConfig::getVersion_2410()
                     (dataResult.resultBuffer[13] << 24) | (dataResult.resultBuffer[14] << 16) |
                         (dataResult.resultBuffer[15] << 8) | dataResult.resultBuffer[16]);
 
-            disableConfigMode_2410();
+            disableConfigMode();
 
             return versionBuffer;
         }
         else
         {
-            disableConfigMode_2410();
+            disableConfigMode();
             return "Get Version Error!";
         }
     }
@@ -660,11 +677,11 @@ String HLKModuleConfig::getVersion_2410()
     }
 }
 
-HLKModuleConfig::AskStatus_2410 HLKModuleConfig::setDetectionDistance_2410(int distance, int times)
+Seeed_HSP24::AskStatus Seeed_HSP24::setDetectionDistance(int distance, int times)
 {
     if (distance >= 1 && distance < 9 && times > 0)
     {
-        HLKModuleConfig::DataResult_2410 dataResult;
+        Seeed_HSP24::DataResult dataResult;
         byte sendData[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x14, 0x00, 0x60, 0x00,
                            0x00, 0x00, 0x08, 0x00, 0x00, 0x00,
                            0x01, 0x00, 0x08, 0x00, 0x00, 0x00,
@@ -681,38 +698,38 @@ HLKModuleConfig::AskStatus_2410 HLKModuleConfig::setDetectionDistance_2410(int d
 
         int sendDataLength = sizeof(sendData);
 
-        if (enableConfigMode_2410() == HLKModuleConfig::AskStatus_2410::Success)
+        if (enableConfigMode() == Seeed_HSP24::AskStatus::Success)
         {
-            dataResult = sendCommand_2410(sendData, sendDataLength);
+            dataResult = sendCommand(sendData, sendDataLength);
 
             if (dataResult.resultBuffer[7] == 0x01 && dataResult.resultBuffer[8] == 0x00)
             {
-                disableConfigMode_2410();
+                disableConfigMode();
 
-                return HLKModuleConfig::AskStatus_2410::Success;
+                return Seeed_HSP24::AskStatus::Success;
             }
             else
             {
-                disableConfigMode_2410();
-                return HLKModuleConfig::AskStatus_2410::Error;
+                disableConfigMode();
+                return Seeed_HSP24::AskStatus::Error;
             }
         }
         else
         {
-            return HLKModuleConfig::AskStatus_2410::Error;
+            return Seeed_HSP24::AskStatus::Error;
         }
     }
     else
     {
-        return HLKModuleConfig::AskStatus_2410::Error;
+        return Seeed_HSP24::AskStatus::Error;
     }
 }
 
-HLKModuleConfig::AskStatus_2410 HLKModuleConfig::setGatePower_2410(int gate, int movePower, int staticPower)
+Seeed_HSP24::AskStatus Seeed_HSP24::setGatePower(int gate, int movePower, int staticPower)
 {
     if (gate >= 1 && gate < 9 && movePower > 0 && staticPower > 0 && movePower <= 100 && staticPower <= 100)
     {
-        HLKModuleConfig::DataResult_2410 dataResult;
+        Seeed_HSP24::DataResult dataResult;
         byte sendData[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x14, 0x00, 0x64, 0x00,
                            0x00, 0x00,
                            0x08, 0x00, 0x00, 0x00,
@@ -735,84 +752,84 @@ HLKModuleConfig::AskStatus_2410 HLKModuleConfig::setGatePower_2410(int gate, int
 
         int sendDataLength = sizeof(sendData);
 
-        if (enableConfigMode_2410() == HLKModuleConfig::AskStatus_2410::Success)
+        if (enableConfigMode() == Seeed_HSP24::AskStatus::Success)
         {
-            dataResult = sendCommand_2410(sendData, sendDataLength);
+            dataResult = sendCommand(sendData, sendDataLength);
 
             if (dataResult.resultBuffer[7] == 0x01 && dataResult.resultBuffer[8] == 0x00)
             {
-                disableConfigMode_2410();
+                disableConfigMode();
 
-                return HLKModuleConfig::AskStatus_2410::Success;
+                return Seeed_HSP24::AskStatus::Success;
             }
             else
             {
-                disableConfigMode_2410();
-                return HLKModuleConfig::AskStatus_2410::Error;
+                disableConfigMode();
+                return Seeed_HSP24::AskStatus::Error;
             }
         }
         else
         {
-            return HLKModuleConfig::AskStatus_2410::Error;
+            return Seeed_HSP24::AskStatus::Error;
         }
     }
     else
     {
-        return HLKModuleConfig::AskStatus_2410::Error;
+        return Seeed_HSP24::AskStatus::Error;
     }
 }
 
-HLKModuleConfig::RadarStatus_2410 HLKModuleConfig::getConfig_2410()
+Seeed_HSP24::RadarStatus Seeed_HSP24::getConfig()
 {
-    HLKModuleConfig::DataResult_2410 dataResult;
-    HLKModuleConfig::RadarStatus_2410 radarStatus_2410;
+    Seeed_HSP24::DataResult dataResult;
+    Seeed_HSP24::RadarStatus radarStatus;
     byte sendData[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0x61, 0x00, 0x04, 0x03, 0x02, 0x01};
     int sendDataLength = sizeof(sendData);
 
-    if (enableConfigMode_2410() == HLKModuleConfig::AskStatus_2410::Success)
+    if (enableConfigMode() == Seeed_HSP24::AskStatus::Success)
     {
-        dataResult = sendCommand_2410(sendData, sendDataLength);
+        dataResult = sendCommand(sendData, sendDataLength);
 
         if (dataResult.resultBuffer[7] == 0x01 && dataResult.resultBuffer[8] == 0x00)
         {
-            radarStatus_2410.detectionDistance = dataResult.resultBuffer[11];
-            radarStatus_2410.moveSetDistance = dataResult.resultBuffer[12];
-            radarStatus_2410.staticSetDistance = dataResult.resultBuffer[13];
+            radarStatus.detectionDistance = dataResult.resultBuffer[11];
+            radarStatus.moveSetDistance = dataResult.resultBuffer[12];
+            radarStatus.staticSetDistance = dataResult.resultBuffer[13];
             int j = 0;
             for (int i = 14; i < 23; i++)
             {
-                radarStatus_2410.radarMovePower.moveGate[j++] = dataResult.resultBuffer[i];
+                radarStatus.radarMovePower.moveGate[j++] = dataResult.resultBuffer[i];
             }
             j = 0;
             for (int i = 23; i < 32; i++)
             {
-                radarStatus_2410.radarStaticPower.staticGate[j++] = dataResult.resultBuffer[i];
+                radarStatus.radarStaticPower.staticGate[j++] = dataResult.resultBuffer[i];
             }
 
             int noTargrtduration = dataResult.resultBuffer[32] | (dataResult.resultBuffer[32] << 8);
-            radarStatus_2410.noTargrtduration = noTargrtduration;
+            radarStatus.noTargrtduration = noTargrtduration;
 
-            disableConfigMode_2410();
+            disableConfigMode();
 
-            return radarStatus_2410;
+            return radarStatus;
         }
         else
         {
-            disableConfigMode_2410();
-            return radarStatus_2410;
+            disableConfigMode();
+            return radarStatus;
         }
     }
     else
     {
-        return radarStatus_2410;
+        return radarStatus;
     }
 }
 
-HLKModuleConfig::AskStatus_2410 HLKModuleConfig::setResolution_2410(int resolution)
+Seeed_HSP24::AskStatus Seeed_HSP24::setResolution(int resolution)
 {
     if (resolution == 0 || resolution == 1)
     {
-        HLKModuleConfig::DataResult_2410 dataResult;
+        Seeed_HSP24::DataResult dataResult;
         byte sendData[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x04, 0x00, 0xAA, 0x00, 0x00, 0x00, 0x04, 0x03, 0x02, 0x01};
         if (resolution == 1)
         {
@@ -820,171 +837,171 @@ HLKModuleConfig::AskStatus_2410 HLKModuleConfig::setResolution_2410(int resoluti
         }
         int sendDataLength = sizeof(sendData);
 
-        if (enableConfigMode_2410() == HLKModuleConfig::AskStatus_2410::Success)
+        if (enableConfigMode() == Seeed_HSP24::AskStatus::Success)
         {
-            dataResult = sendCommand_2410(sendData, sendDataLength);
+            dataResult = sendCommand(sendData, sendDataLength);
 
             if (dataResult.resultBuffer[8] == 0x00)
             {
                 rebootRadar();
-                return HLKModuleConfig::AskStatus_2410::Success;
+                return Seeed_HSP24::AskStatus::Success;
             }
             else
             {
                 rebootRadar();
-                return HLKModuleConfig::AskStatus_2410::Error;
+                return Seeed_HSP24::AskStatus::Error;
             }
         }
         else
         {
-            return HLKModuleConfig::AskStatus_2410::Error;
+            return Seeed_HSP24::AskStatus::Error;
         }
     }
     else
     {
-        return HLKModuleConfig::AskStatus_2410::Error;
+        return Seeed_HSP24::AskStatus::Error;
     }
 }
 
-HLKModuleConfig::RadarStatus_2410 HLKModuleConfig::getResolution_2410()
+Seeed_HSP24::RadarStatus Seeed_HSP24::getResolution()
 {
-    HLKModuleConfig::DataResult_2410 dataResult;
-    HLKModuleConfig::RadarStatus_2410 radarStatus_2410;
+    Seeed_HSP24::DataResult dataResult;
+    Seeed_HSP24::RadarStatus radarStatus;
     byte sendData[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0xAB, 0x00, 0x04, 0x03, 0x02, 0x01};
     int sendDataLength = sizeof(sendData);
 
-    if (enableConfigMode_2410() == HLKModuleConfig::AskStatus_2410::Success)
+    if (enableConfigMode() == Seeed_HSP24::AskStatus::Success)
     {
-        dataResult = sendCommand_2410(sendData, sendDataLength);
+        dataResult = sendCommand(sendData, sendDataLength);
 
         if (dataResult.resultBuffer[8] == 0x00)
         {
-            radarStatus_2410.resolution = dataResult.resultBuffer[10];
+            radarStatus.resolution = dataResult.resultBuffer[10];
 
-            disableConfigMode_2410();
+            disableConfigMode();
 
-            return radarStatus_2410;
+            return radarStatus;
         }
         else
         {
-            disableConfigMode_2410();
-            return radarStatus_2410;
+            disableConfigMode();
+            return radarStatus;
         }
     }
     else
     {
-        return radarStatus_2410;
+        return radarStatus;
     }
 }
 
-HLKModuleConfig::AskStatus_2410 HLKModuleConfig::rebootRadar()
+Seeed_HSP24::AskStatus Seeed_HSP24::rebootRadar()
 {
 
-    HLKModuleConfig::DataResult_2410 dataResult;
+    Seeed_HSP24::DataResult dataResult;
     byte sendData[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0xA3, 0x00, 0x04, 0x03, 0x02, 0x01};
     int sendDataLength = sizeof(sendData);
 
-    if (enableConfigMode_2410() == HLKModuleConfig::AskStatus_2410::Success)
+    if (enableConfigMode() == Seeed_HSP24::AskStatus::Success)
     {
-        dataResult = sendCommand_2410(sendData, sendDataLength);
+        dataResult = sendCommand(sendData, sendDataLength);
 
         if (dataResult.resultBuffer[8] == 0x00)
         {
-            return HLKModuleConfig::AskStatus_2410::Success;
+            return Seeed_HSP24::AskStatus::Success;
         }
         else
         {
-            return HLKModuleConfig::AskStatus_2410::Error;
+            return Seeed_HSP24::AskStatus::Error;
         }
     }
     else
     {
-        return HLKModuleConfig::AskStatus_2410::Error;
+        return Seeed_HSP24::AskStatus::Error;
     }
 }
 
-HLKModuleConfig::AskStatus_2410 HLKModuleConfig::refactoryRadar()
+Seeed_HSP24::AskStatus Seeed_HSP24::refactoryRadar()
 {
-    HLKModuleConfig::DataResult_2410 dataResult;
+    Seeed_HSP24::DataResult dataResult;
     byte sendData[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0xA2, 0x00, 0x04, 0x03, 0x02, 0x01};
     int sendDataLength = sizeof(sendData);
 
-    if (enableConfigMode_2410() == HLKModuleConfig::AskStatus_2410::Success)
+    if (enableConfigMode() == Seeed_HSP24::AskStatus::Success)
     {
-        dataResult = sendCommand_2410(sendData, sendDataLength);
+        dataResult = sendCommand(sendData, sendDataLength);
 
         if (dataResult.resultBuffer[8] == 0x00)
         {
             rebootRadar();
-            return HLKModuleConfig::AskStatus_2410::Success;
+            return Seeed_HSP24::AskStatus::Success;
         }
         else
         {
             rebootRadar();
-            return HLKModuleConfig::AskStatus_2410::Error;
+            return Seeed_HSP24::AskStatus::Error;
         }
     }
     else
     {
-        return HLKModuleConfig::AskStatus_2410::Error;
+        return Seeed_HSP24::AskStatus::Error;
     }
 }
 
-HLKModuleConfig::AskStatus_2410 HLKModuleConfig::enableEngineeringModel()
+Seeed_HSP24::AskStatus Seeed_HSP24::enableEngineeringModel()
 {
-    HLKModuleConfig::DataResult_2410 dataResult;
+    Seeed_HSP24::DataResult dataResult;
     byte sendData[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0x62, 0x00, 0x04, 0x03, 0x02, 0x01};
     int sendDataLength = sizeof(sendData);
 
-    if (enableConfigMode_2410() == HLKModuleConfig::AskStatus_2410::Success)
+    if (enableConfigMode() == Seeed_HSP24::AskStatus::Success)
     {
-        dataResult = sendCommand_2410(sendData, sendDataLength);
+        dataResult = sendCommand(sendData, sendDataLength);
 
         if (dataResult.resultBuffer[8] == 0x00)
         {
-            disableConfigMode_2410();
-            return HLKModuleConfig::AskStatus_2410::Success;
+            disableConfigMode();
+            return Seeed_HSP24::AskStatus::Success;
         }
         else
         {
-            disableConfigMode_2410();
-            return HLKModuleConfig::AskStatus_2410::Error;
+            disableConfigMode();
+            return Seeed_HSP24::AskStatus::Error;
         }
     }
     else
     {
-        return HLKModuleConfig::AskStatus_2410::Error;
+        return Seeed_HSP24::AskStatus::Error;
     }
 }
 
-HLKModuleConfig::AskStatus_2410 HLKModuleConfig::disableEngineeringModel()
+Seeed_HSP24::AskStatus Seeed_HSP24::disableEngineeringModel()
 {
-    HLKModuleConfig::DataResult_2410 dataResult;
+    Seeed_HSP24::DataResult dataResult;
     byte sendData[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0x63, 0x00, 0x04, 0x03, 0x02, 0x01};
     int sendDataLength = sizeof(sendData);
 
-    if (enableConfigMode_2410() == HLKModuleConfig::AskStatus_2410::Success)
+    if (enableConfigMode() == Seeed_HSP24::AskStatus::Success)
     {
-        dataResult = sendCommand_2410(sendData, sendDataLength);
+        dataResult = sendCommand(sendData, sendDataLength);
 
         if (dataResult.resultBuffer[8] == 0x00)
         {
-            disableConfigMode_2410();
-            return HLKModuleConfig::AskStatus_2410::Success;
+            disableConfigMode();
+            return Seeed_HSP24::AskStatus::Success;
         }
         else
         {
-            disableConfigMode_2410();
-            return HLKModuleConfig::AskStatus_2410::Error;
+            disableConfigMode();
+            return Seeed_HSP24::AskStatus::Error;
         }
     }
     else
     {
-        return HLKModuleConfig::AskStatus_2410::Error;
+        return Seeed_HSP24::AskStatus::Error;
     }
 }
 
-int HLKModuleConfig::findSequence(byte *arr, int arrLen, const byte *seq, int seqLen)
+int Seeed_HSP24::findSequence(byte *arr, int arrLen, const byte *seq, int seqLen)
 {
     for (int i = 0; i < arrLen - seqLen + 1; i++)
     {

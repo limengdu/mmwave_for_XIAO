@@ -1,18 +1,20 @@
 #include <SoftwareSerial.h>
-#include <HLKModuleConfig.h>
+#include <mmwave_for_xiao.h>
 
 // 定义SoftwareSerial对象，RX为8号引脚，TX为9号引脚
-SoftwareSerial debugSerial(7, 8);
+SoftwareSerial hardwareSerial(D2, D3);
+
 // 创建全局Serial对象和SoftwareSerial对象，连接2410的串口，RX为0号引脚，TX为1号引脚
-HardwareSerial& hardwareSerial = Serial;
+#define debugSerial Serial
+
 // 初始化雷达配置
-HLKModuleConfig hlk_config(hardwareSerial, debugSerial);
-//HLKModuleConfig hlk_config(hardwareSerial);
-HLKModuleConfig::RadarStatus_2410 radarStatus;
+Seeed_HSP24 xiao_config(hardwareSerial, debugSerial);
+//Seeed_HSP24 xiao_config(hardwareSerial);
+Seeed_HSP24::RadarStatus radarStatus;
 
 void setup() {
   Serial.begin(115200);
-  debugSerial.begin(56000);
+  debugSerial.begin(115200);
 }
 
 void loop() {
@@ -21,16 +23,17 @@ void loop() {
 
   //获取雷达状态
   do {
-    radarStatus = hlk_config.getStatus_2410();
+    radarStatus = xiao_config.getStatus();
     retryCount++;
+//    debugSerial.println(radarStatus.distance);
   } while (radarStatus.distance == -1 && retryCount < MAX_RETRIES);
 
   //解析雷达状态，并把结果从调试串口打印出来
   if (radarStatus.distance != -1) {
     debugSerial.print("Status: " + String(targetStatusToString(radarStatus.targetStatus)) + "  ----   ");
-    debugSerial.println("Distance: " + String(radarStatus.distance) + "  Mode: " + String(radarStatus.radarMode_2410));
+    debugSerial.println("Distance: " + String(radarStatus.distance) + "  Mode: " + String(radarStatus.radarMode));
     debugSerial.print("Move: ");
-    if (radarStatus.radarMode_2410 == 1) {
+    if (radarStatus.radarMode == 1) {
       for (int i = 0; i < 9; i++) {
         debugSerial.print(String(radarStatus.radarMovePower.moveGate[i]) + "  ,");
       }
@@ -47,15 +50,15 @@ void loop() {
 }
 
 // 解析获取到的雷达状态
-const char* targetStatusToString(HLKModuleConfig::TargetStatus_2410 status) {
+const char* targetStatusToString(Seeed_HSP24::TargetStatus status) {
   switch (status) {
-    case HLKModuleConfig::TargetStatus_2410::NoTarget:
+    case Seeed_HSP24::TargetStatus::NoTarget:
       return "NoTarget";
-    case HLKModuleConfig::TargetStatus_2410::MovingTarget:
+    case Seeed_HSP24::TargetStatus::MovingTarget:
       return "MovingTarget";
-    case HLKModuleConfig::TargetStatus_2410::StaticTarget:
+    case Seeed_HSP24::TargetStatus::StaticTarget:
       return "StaticTarget";
-    case HLKModuleConfig::TargetStatus_2410::BothTargets:
+    case Seeed_HSP24::TargetStatus::BothTargets:
       return "BothTargets";
     default:
       return "Unknown";
