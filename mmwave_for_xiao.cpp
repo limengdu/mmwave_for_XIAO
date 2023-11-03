@@ -3,11 +3,6 @@
 
 #define BUFFER_SIZE 256 // 串口缓冲区大小
 
-// Seeed_HSP24::Seeed_HSP24(SoftwareSerial &serial, HardwareSerial &debugSerial) : _serial(serial), _debugSerial(debugSerial),
-//                                                                                         bufferIndex(0), receiveStartTime(0), isInATMode(0), bufferIndex_hsp24(0)
-// {
-// }
-
 Seeed_HSP24::Seeed_HSP24(Stream &serial)
     : _serial(&serial),
     _debugSerial(nullptr),
