@@ -53,7 +53,7 @@ int Seeed_HSP24::enterATMode()
             }
             else if (buffer[0] == 'O' && buffer[1] == 'K')
             { // 进入at模式
-                if (_debugSerial->available() > 0)
+                if (_debugSerial != nullptr && _debugSerial->available() > 0)
                 {
                     _debugSerial->println("Enter AT Mode Success!");
                 }
@@ -111,7 +111,7 @@ int Seeed_HSP24::exitATMode()
             char *found = strstr(this->buffer, "ok");
             if (found != NULL)
             {
-                if (_debugSerial->available() > 0)
+                if (_debugSerial != nullptr && _debugSerial->available() > 0)
                 {
                     _debugSerial->println("Setting Success!");
                 }
@@ -123,7 +123,7 @@ int Seeed_HSP24::exitATMode()
             }
             else
             {
-                if (_debugSerial->available() > 0)
+                if (_debugSerial != nullptr && _debugSerial->available() > 0)
                 {
                     // 发送缓冲区中的数据到另一个串口
                     for (int i = 0; i < this->bufferIndex; i++)
@@ -170,7 +170,7 @@ int Seeed_HSP24::checkBuffer()
             char *found = strstr(this->buffer, "ok");
             if (found != NULL)
             {
-                if (_debugSerial->available() > 0)
+                if (_debugSerial != nullptr && _debugSerial->available() > 0)
                 {
                     _debugSerial->println("Setting Success!");
                 }
@@ -183,7 +183,7 @@ int Seeed_HSP24::checkBuffer()
             }
             else
             {
-                if (_debugSerial->available() > 0)
+                if (_debugSerial != nullptr && _debugSerial->available() > 0)
                 {
                     // 发送缓冲区中的数据到另一个串口
                     for (int i = 0; i < this->bufferIndex; i++)
@@ -239,8 +239,11 @@ int Seeed_HSP24::setNetwork(String ssid, String password)
 
 Seeed_HSP24::TargetStatus status = Seeed_HSP24::TargetStatus::NoTarget;
 
+// 主动上报
 const byte Seeed_HSP24::frameStart[Seeed_HSP24::FRAME_START_SIZE] = {0xF4, 0xF3, 0xF2, 0xF1};
 const byte Seeed_HSP24::frameEnd[Seeed_HSP24::FRAME_END_SIZE] = {0xF8, 0xF7, 0xF6, 0xF5};
+
+// 查询返回
 const byte Seeed_HSP24::frameAskStart[Seeed_HSP24::FRAME_START_SIZE] = {0xFD, 0xFC, 0xFB, 0xFA};
 const byte Seeed_HSP24::frameAskEnd[Seeed_HSP24::FRAME_END_SIZE] = {0x04, 0x03, 0x02, 0x01};
 
@@ -256,7 +259,6 @@ Seeed_HSP24::RadarStatus Seeed_HSP24::getStatus()
     while (_serial->available() && bufferIndex_hsp24 < BUFFER_SIZE)
     {
         buffer_hsp24[bufferIndex_hsp24] = _serial->read();
-        // _debugSerial->println(buffer_hsp24[bufferIndex_hsp24]);
         bufferIndex_hsp24++;
 
         // 检查是否收到完整的帧
@@ -309,7 +311,7 @@ Seeed_HSP24::RadarStatus Seeed_HSP24::getStatus()
             // 获取数组长度
             int finalBufferSize = (lastFrameEnd + 4) - lastFrameStart;
 
-            // 判断第六位是工程模式数据还是基本模式数据
+            // 判断第七位是工程模式数据还是基本模式数据
             int mode = finalBuffer[6];
             radarStatus.radarMode = mode;
             if (mode == 1) // 工程模式上报
@@ -339,7 +341,7 @@ Seeed_HSP24::RadarStatus Seeed_HSP24::getStatus()
             }
 
             // 提取雷达上报状态
-            if (_debugSerial->available() > 0)
+            if (_debugSerial != nullptr && _debugSerial->available() > 0)
             {
                 _debugSerial->println(finalBuffer[8]);
             }
@@ -347,12 +349,20 @@ Seeed_HSP24::RadarStatus Seeed_HSP24::getStatus()
             radarStatus.targetStatus = static_cast<Seeed_HSP24::TargetStatus>(finalBuffer[8]);
 
             // 提取目标距离
-            int distance = finalBuffer[15] | (finalBuffer[16] << 8); // 小端序解析
-            if (_debugSerial->available() > 0)
+            if(radarStatus.targetStatus != Seeed_HSP24::TargetStatus::ErrorFrame)
             {
-                _debugSerial->println("distance: " + String(distance));
+                int distance = finalBuffer[15] | (finalBuffer[16] << 8); // 小端序解析
+                if (_debugSerial != nullptr && _debugSerial->available() > 0)
+                {
+                    _debugSerial->println("distance: " + String(distance));
+                }
+                radarStatus.distance = distance;
             }
-            radarStatus.distance = distance;
+            else
+            {
+                radarStatus.distance = -1;
+            }
+            
 
             // _debugSerial->print("nature: ");
             // for (int i = 0; i < sizeof(tmp_buffer); i++)
@@ -384,6 +394,7 @@ Seeed_HSP24::RadarStatus Seeed_HSP24::getStatus()
 
             return radarStatus;
         }
+
         else if (startAskIndex != -1 && endAskIndex != -1 && endAskIndex > startAskIndex)
         {
             uint8_t tmp_buffer[(endAskIndex + 4) - startAskIndex];
@@ -437,15 +448,15 @@ Seeed_HSP24::RadarStatus Seeed_HSP24::getStatus()
             // }
             // _debugSerial->println();
 
-            _debugSerial->print("Payload: ");
-            for (int i = 0; i < finalBufferSize; i++)
-            {
-                if (finalBuffer[i] < 0x10)
-                    _debugSerial->print("0");
-                _debugSerial->print(finalBuffer[i], HEX);
-                _debugSerial->print(" ");
-            }
-            _debugSerial->println();
+            // _debugSerial->print("Payload: ");
+            // for (int i = 0; i < finalBufferSize; i++)
+            // {
+            //     if (finalBuffer[i] < 0x10)
+            //         _debugSerial->print("0");
+            //     _debugSerial->print(finalBuffer[i], HEX);
+            //     _debugSerial->print(" ");
+            // }
+            // _debugSerial->println();
 
             // 清除缓冲区
             int bytesToMove = bufferIndex_hsp24 - (endAskIndex + 4);
@@ -494,7 +505,7 @@ Seeed_HSP24::DataResult Seeed_HSP24::sendCommand(const byte *sendData, int sendD
             _serial->write(sendData, sendDataLength);
             tryTimes++;
             lastSendTime = millis(); // 更新发送时间
-            if (_debugSerial->available() > 0)
+            if (_debugSerial != nullptr && _debugSerial->available() > 0)
             {
                 _debugSerial->println("times: " + String(tryTimes));
             }
@@ -516,7 +527,7 @@ Seeed_HSP24::DataResult Seeed_HSP24::sendCommand(const byte *sendData, int sendD
             if (startIndex != -1 && endIndex != -1 && endIndex > startIndex)
             {
                 uint8_t tmp_buffer[(endIndex + 4) - startIndex];
-                if (_debugSerial->available() > 0)
+                if (_debugSerial != nullptr && _debugSerial->available() > 0)
                 {
                     _debugSerial->println("start: " + String(startIndex) + "  end: " + String(endIndex));
                 }
@@ -553,7 +564,7 @@ Seeed_HSP24::DataResult Seeed_HSP24::sendCommand(const byte *sendData, int sendD
                     dataResult.length = (endIndex + 4) - startIndex;
                     dataResult.resultBuffer = finalBuffer;
 
-                    if (_debugSerial->available() > 0)
+                    if (_debugSerial != nullptr && _debugSerial->available() > 0)
                     {
                         _debugSerial->println("resultBuffer: ");
 
@@ -574,7 +585,7 @@ Seeed_HSP24::DataResult Seeed_HSP24::sendCommand(const byte *sendData, int sendD
                 {
                     // 如果帧不完整或太短，则清空finalBuffer
                     memset(finalBuffer, -1, sizeof(finalBuffer));
-                    if (_debugSerial->available() > 0)
+                    if (_debugSerial != nullptr && _debugSerial->available() > 0)
                     {
                         _debugSerial->println("error!!!");
                     }

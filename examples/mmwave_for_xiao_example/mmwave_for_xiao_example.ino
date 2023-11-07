@@ -18,8 +18,10 @@ Seeed_HSP24 xiao_config(COMSerial, ShowSerial);
 Seeed_HSP24::RadarStatus radarStatus;
 
 void setup() {
-  Serial.begin(115200);
+  Serial.begin(256000);
   ShowSerial.begin(115200);
+
+  ShowSerial.println("Programme Starting!");
 }
 
 void loop() {
