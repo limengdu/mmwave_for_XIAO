@@ -263,15 +263,17 @@ Seeed_HSP24::RadarStatus Seeed_HSP24::getStatus()
 
         // 检查是否收到完整的帧
         int startIndex = findSequence(buffer_hsp24, bufferIndex_hsp24, frameStart, 4);
+
         int endIndex = findSequence(buffer_hsp24, bufferIndex_hsp24, frameEnd, 4);
 
         // 检查是否收到完整的帧
         int startAskIndex = findSequence(buffer_hsp24, bufferIndex_hsp24, frameAskStart, 4);
         int endAskIndex = findSequence(buffer_hsp24, bufferIndex_hsp24, frameAskEnd, 4);
 
-        uint8_t finalBuffer[(endIndex + 4) - startIndex];
-        // 接收到完整帧
-        if (startIndex != -1 && endIndex != -1 && endIndex > startIndex)
+        // uint8_t finalBuffer[(endIndex + 4) - startIndex];
+
+        // 接收到完整帧，指的是基础模式
+        if ((endIndex + 4 - startIndex) == MIN_FRAME_LENGTH_BASE)
         {
             uint8_t tmp_buffer[(endIndex + 4) - startIndex];
             for (int i = startIndex; i < endIndex + 4; i++)
@@ -279,80 +281,87 @@ Seeed_HSP24::RadarStatus Seeed_HSP24::getStatus()
                 tmp_buffer[i] = buffer_hsp24[i];
             }
             // 解析数组
-            int lastFrameStart = -1;
-            int lastFrameEnd = -1;
+            // int lastFrameStart = -1;
+            // int lastFrameEnd = -1;
             int tmp_bufferSize = sizeof(tmp_buffer);
-            for (int i = tmp_bufferSize - 4; i >= 0; i--)
-            {
-                if (tmp_buffer[i] == 0xF4 && tmp_buffer[i + 1] == 0xF3 && tmp_buffer[i + 2] == 0xF2 && tmp_buffer[i + 3] == 0xF1 && lastFrameStart == -1)
-                {
-                    lastFrameStart = i;
-                }
-                if (tmp_buffer[i] == 0xF8 && tmp_buffer[i + 1] == 0xF7 && tmp_buffer[i + 2] == 0xF6 && tmp_buffer[i + 3] == 0xF5 && lastFrameEnd == -1)
-                {
-                    lastFrameEnd = i;
-                }
-            }
-            if (lastFrameStart != -1 && lastFrameEnd != -1 && lastFrameStart < lastFrameEnd && (lastFrameEnd - lastFrameStart + 4) >= MIN_FRAME_LENGTH_BASE)
-            {
-                int j = 0;
-                for (int i = lastFrameStart; i <= lastFrameEnd + 3; i++)
-                {
-                    finalBuffer[j++] = tmp_buffer[i];
-                }
-            }
-            else
-            {
-                // 如果帧不完整或太短，则清空finalBuffer
-                memset(finalBuffer, 0, sizeof(finalBuffer));
-                return radarStatus;
-            }
+            // for (int i = tmp_bufferSize - 4; i >= 0; i--)
+            // {
+            //     if (tmp_buffer[i] == 0xF4 && tmp_buffer[i + 1] == 0xF3 && tmp_buffer[i + 2] == 0xF2 && tmp_buffer[i + 3] == 0xF1 && lastFrameStart == -1)
+            //     {
+            //         lastFrameStart = i;
+            //     }
+            //     if (tmp_buffer[i] == 0xF8 && tmp_buffer[i + 1] == 0xF7 && tmp_buffer[i + 2] == 0xF6 && tmp_buffer[i + 3] == 0xF5 && lastFrameEnd == -1)
+            //     {
+            //         lastFrameEnd = i;
+            //     }
+            // }
+            // if (lastFrameStart != -1 && lastFrameEnd != -1 && lastFrameStart < lastFrameEnd && (lastFrameEnd - lastFrameStart + 4) == MIN_FRAME_LENGTH_BASE)
+            // {
+            //     int j = 0;
+            //     for (int i = lastFrameStart; i <= lastFrameEnd + 3; i++)
+            //     {
+            //         finalBuffer[j++] = tmp_buffer[i];
+            //     }
+            // }
+            // else
+            // {
+            //     // 如果帧不完整或太长，则清空finalBuffer
+            //     memset(finalBuffer, 0, sizeof(finalBuffer));
+            //     return radarStatus;
+            // }
             // 解析数组结束
             // 获取数组长度
-            int finalBufferSize = (lastFrameEnd + 4) - lastFrameStart;
+            // int finalBufferSize = (lastFrameEnd + 4) - lastFrameStart;
 
             // 判断第七位是工程模式数据还是基本模式数据
-            int mode = finalBuffer[6];
+            int mode = tmp_buffer[6];
             radarStatus.radarMode = mode;
-            if (mode == 1) // 工程模式上报
-            {
-                if (finalBufferSize > 45)
-                {
-                    return radarStatus;
-                }
-                else
-                {
-                    radarStatus.moveSetDistance = finalBuffer[17];   // 最远运动距离门
-                    radarStatus.staticSetDistance = finalBuffer[18]; // 最远静止距离门
-                    radarStatus.photosensitive = finalBuffer[37];    // 光敏
-                    for (int i = 0; i < 9; i++)                                // 运动和静止每个距离门的能量值
-                    {
-                        radarStatus.radarMovePower.moveGate[i] = finalBuffer[i + 19];
-                        radarStatus.radarStaticPower.staticGate[i] = finalBuffer[i + 28];
-                    }
-                }
-            }
-            else if (mode == 2) // 基本模式上报
-            {
-                if (finalBufferSize > 23)
-                {
-                    return radarStatus;
-                }
-            }
+            if(mode != 2) return radarStatus;
+            if(tmp_buffer[7] != 0xAA) return radarStatus;
+            if(tmp_buffer[17] != 0x55) return radarStatus;
+            if(tmp_buffer[18] != 0x00) return radarStatus;
+
+
+
+            // if (mode == 1) // 工程模式上报
+            // {
+            //     if (finalBufferSize > 45)
+            //     {
+            //         return radarStatus;
+            //     }
+            //     else
+            //     {
+            //         radarStatus.moveSetDistance = finalBuffer[17];   // 最远运动距离门
+            //         radarStatus.staticSetDistance = finalBuffer[18]; // 最远静止距离门
+            //         radarStatus.photosensitive = finalBuffer[37];    // 光敏
+            //         for (int i = 0; i < 9; i++)                                // 运动和静止每个距离门的能量值
+            //         {
+            //             radarStatus.radarMovePower.moveGate[i] = finalBuffer[i + 19];
+            //             radarStatus.radarStaticPower.staticGate[i] = finalBuffer[i + 28];
+            //         }
+            //     }
+            // }
+            // else if (mode == 2) // 基本模式上报
+            // {
+            //     if (finalBufferSize > 23)
+            //     {
+            //         return radarStatus;
+            //     }
+            // }
 
             // 提取雷达上报状态
-            if (_debugSerial != nullptr && _debugSerial->available() > 0)
+            if (_debugSerial != nullptr)
             {
-                _debugSerial->println(finalBuffer[8]);
+                _debugSerial->println("sensor status: " + String(tmp_buffer[8]));
             }
-            status = static_cast<Seeed_HSP24::TargetStatus>(finalBuffer[8]);
-            radarStatus.targetStatus = static_cast<Seeed_HSP24::TargetStatus>(finalBuffer[8]);
+            status = static_cast<Seeed_HSP24::TargetStatus>(tmp_buffer[8]);
+            radarStatus.targetStatus = static_cast<Seeed_HSP24::TargetStatus>(tmp_buffer[8]);
 
             // 提取目标距离
             if(radarStatus.targetStatus != Seeed_HSP24::TargetStatus::ErrorFrame)
             {
-                int distance = finalBuffer[15] | (finalBuffer[16] << 8); // 小端序解析
-                if (_debugSerial != nullptr && _debugSerial->available() > 0)
+                int distance = tmp_buffer[15] | (tmp_buffer[16] << 8); // 小端序解析
+                if (_debugSerial != nullptr)
                 {
                     _debugSerial->println("distance: " + String(distance));
                 }
@@ -364,25 +373,15 @@ Seeed_HSP24::RadarStatus Seeed_HSP24::getStatus()
             }
             
 
-            // _debugSerial->print("nature: ");
-            // for (int i = 0; i < sizeof(tmp_buffer); i++)
-            // {
-            //     if (tmp_buffer[i] < 0x10)
-            //         _debugSerial->print("0");
-            //     _debugSerial->print(tmp_buffer[i], HEX);
-            //     _debugSerial->print(" ");
-            // }
-            // _debugSerial->println();
-
-            // _debugSerial->print("Payload: ");
-            // for (int i = 0; i < finalBufferSize; i++)
-            // {
-            //     if (finalBuffer[i] < 0x10)
-            //         _debugSerial->print("0");
-            //     _debugSerial->print(finalBuffer[i], HEX);
-            //     _debugSerial->print(" ");
-            // }
-            // _debugSerial->println();
+            _debugSerial->print("nature: ");
+            for (int i = 0; i < sizeof(tmp_buffer); i++)
+            {
+                if (tmp_buffer[i] < 0x10)
+                    _debugSerial->print("0");
+                _debugSerial->print(tmp_buffer[i], HEX);
+                _debugSerial->print(" ");
+            }
+            _debugSerial->println();
 
             // 清除缓冲区
             int bytesToMove = bufferIndex_hsp24 - (endIndex + 4);
@@ -395,88 +394,89 @@ Seeed_HSP24::RadarStatus Seeed_HSP24::getStatus()
             return radarStatus;
         }
 
-        else if (startAskIndex != -1 && endAskIndex != -1 && endAskIndex > startAskIndex)
-        {
-            uint8_t tmp_buffer[(endAskIndex + 4) - startAskIndex];
-            for (int i = startAskIndex; i < endAskIndex + 4; i++)
-            {
-                tmp_buffer[i] = buffer_hsp24[i];
-            }
+        // 检查工程模式下数据帧是否完整
+        // else if (startAskIndex != -1 && endAskIndex != -1 && endAskIndex > startAskIndex)
+        // {
+        //     uint8_t tmp_buffer[(endAskIndex + 4) - startAskIndex];
+        //     for (int i = startAskIndex; i < endAskIndex + 4; i++)
+        //     {
+        //         tmp_buffer[i] = buffer_hsp24[i];
+        //     }
 
-            // 解析数组
-            int lastFrameStart = -1;
-            int lastFrameEnd = -1;
-            int tmp_bufferSize = sizeof(tmp_buffer);
-            for (int i = tmp_bufferSize - 4; i >= 0; i--)
-            {
-                if (tmp_buffer[i] == 0xFD && tmp_buffer[i + 1] == 0xFC && tmp_buffer[i + 2] == 0xFB && tmp_buffer[i + 3] == 0xFA && lastFrameStart == -1)
-                {
-                    lastFrameStart = i;
-                }
-                if (tmp_buffer[i] == 0x04 && tmp_buffer[i + 1] == 0x03 && tmp_buffer[i + 2] == 0x02 && tmp_buffer[i + 3] == 0x01 && lastFrameEnd == -1)
-                {
-                    lastFrameEnd = i;
-                }
-            }
-            if (lastFrameStart != -1 && lastFrameEnd != -1 && lastFrameStart < lastFrameEnd)
-            {
-                int j = 0;
-                for (int i = lastFrameStart; i <= lastFrameEnd + 3; i++)
-                {
-                    finalBuffer[j++] = tmp_buffer[i];
-                }
-            }
-            else
-            {
-                // 如果帧不完整或太短，则清空finalBuffer
-                memset(finalBuffer, 0, sizeof(finalBuffer));
-                // return Seeed_HSP24::AskStatus::Error;
-                return radarStatus;
-            }
-            // 解析数组结束
+        //     // 解析数组
+        //     int lastFrameStart = -1;
+        //     int lastFrameEnd = -1;
+        //     int tmp_bufferSize = sizeof(tmp_buffer);
+        //     for (int i = tmp_bufferSize - 4; i >= 0; i--)
+        //     {
+        //         if (tmp_buffer[i] == 0xFD && tmp_buffer[i + 1] == 0xFC && tmp_buffer[i + 2] == 0xFB && tmp_buffer[i + 3] == 0xFA && lastFrameStart == -1)
+        //         {
+        //             lastFrameStart = i;
+        //         }
+        //         if (tmp_buffer[i] == 0x04 && tmp_buffer[i + 1] == 0x03 && tmp_buffer[i + 2] == 0x02 && tmp_buffer[i + 3] == 0x01 && lastFrameEnd == -1)
+        //         {
+        //             lastFrameEnd = i;
+        //         }
+        //     }
+        //     if (lastFrameStart != -1 && lastFrameEnd != -1 && lastFrameStart < lastFrameEnd)
+        //     {
+        //         int j = 0;
+        //         for (int i = lastFrameStart; i <= lastFrameEnd + 3; i++)
+        //         {
+        //             finalBuffer[j++] = tmp_buffer[i];
+        //         }
+        //     }
+        //     else
+        //     {
+        //         // 如果帧不完整或太短，则清空finalBuffer
+        //         memset(finalBuffer, 0, sizeof(finalBuffer));
+        //         // return Seeed_HSP24::AskStatus::Error;
+        //         return radarStatus;
+        //     }
+        //     // 解析数组结束
 
-            // 获取数组长度
-            int finalBufferSize = (lastFrameEnd + 4) - lastFrameStart;
+        //     // 获取数组长度
+        //     int finalBufferSize = (lastFrameEnd + 4) - lastFrameStart;
 
-            // _debugSerial->print("nature: ");
-            // for (int i = 0; i < sizeof(tmp_buffer); i++)
-            // {
-            //     if (tmp_buffer[i] < 0x10)
-            //         _debugSerial->print("0");
-            //     _debugSerial->print(tmp_buffer[i], HEX);
-            //     _debugSerial->print(" ");
-            // }
-            // _debugSerial->println();
+        //     _debugSerial->print("nature: ");
+        //     for (int i = 0; i < sizeof(tmp_buffer); i++)
+        //     {
+        //         if (tmp_buffer[i] < 0x10)
+        //             _debugSerial->print("0");
+        //         _debugSerial->print(tmp_buffer[i], HEX);
+        //         _debugSerial->print(" ");
+        //     }
+        //     _debugSerial->println();
 
-            // _debugSerial->print("Payload: ");
-            // for (int i = 0; i < finalBufferSize; i++)
-            // {
-            //     if (finalBuffer[i] < 0x10)
-            //         _debugSerial->print("0");
-            //     _debugSerial->print(finalBuffer[i], HEX);
-            //     _debugSerial->print(" ");
-            // }
-            // _debugSerial->println();
+        //     _debugSerial->print("Payload: ");
+        //     for (int i = 0; i < finalBufferSize; i++)
+        //     {
+        //         if (finalBuffer[i] < 0x10)
+        //             _debugSerial->print("0");
+        //         _debugSerial->print(finalBuffer[i], HEX);
+        //         _debugSerial->print(" ");
+        //     }
+        //     _debugSerial->println();
 
-            // 清除缓冲区
-            int bytesToMove = bufferIndex_hsp24 - (endAskIndex + 4);
-            for (int i = 0; i < bytesToMove; i++)
-            {
-                buffer_hsp24[i] = buffer_hsp24[endAskIndex + 4 + i];
-            }
-            bufferIndex_hsp24 = bytesToMove;
+        //     // 清除缓冲区
+        //     int bytesToMove = bufferIndex_hsp24 - (endAskIndex + 4);
+        //     for (int i = 0; i < bytesToMove; i++)
+        //     {
+        //         buffer_hsp24[i] = buffer_hsp24[endAskIndex + 4 + i];
+        //     }
+        //     bufferIndex_hsp24 = bytesToMove;
 
-            if (finalBuffer[8] == 0)
-            {
-                // return Seeed_HSP24::AskStatus::Success;
-                return radarStatus;
-            }
-            else
-            {
-                // return Seeed_HSP24::AskStatus::Error;
-                return radarStatus;
-            }
-        }
+        //     if (finalBuffer[8] == 0)
+        //     {
+        //         // return Seeed_HSP24::AskStatus::Success;
+        //         return radarStatus;
+        //     }
+        //     else
+        //     {
+        //         // return Seeed_HSP24::AskStatus::Error;
+        //         return radarStatus;
+        //     }
+        // }
     }
     return radarStatus;
 }
@@ -503,108 +503,113 @@ Seeed_HSP24::DataResult Seeed_HSP24::sendCommand(const byte *sendData, int sendD
         {
             // 串口发送使能指令
             _serial->write(sendData, sendDataLength);
-            tryTimes++;
-            lastSendTime = millis(); // 更新发送时间
-            if (_debugSerial != nullptr && _debugSerial->available() > 0)
-            {
-                _debugSerial->println("times: " + String(tryTimes));
-            }
+            
         }
 
         // 从串口读取数据并存储到buffer中
-        while (_serial->available() && bufferIndex_hsp24 < BUFFER_SIZE)
+        while(millis() - startTime < 3000)
         {
-            buffer_hsp24[bufferIndex_hsp24] = _serial->read();
-            bufferIndex_hsp24++;
-
-            // 检查是否收到完整的帧
-            int startIndex = findSequence(buffer_hsp24, bufferIndex_hsp24, frameAskStart, 4);
-            int endIndex = findSequence(buffer_hsp24, bufferIndex_hsp24, frameAskEnd, 4);
-
-            // static uint8_t finalBuffer[128];
-            uint8_t *finalBuffer = nullptr;
-            // 接收到完整帧
-            if (startIndex != -1 && endIndex != -1 && endIndex > startIndex)
+            while (_serial->available() && bufferIndex_hsp24 < BUFFER_SIZE)
             {
-                uint8_t tmp_buffer[(endIndex + 4) - startIndex];
-                if (_debugSerial != nullptr && _debugSerial->available() > 0)
-                {
-                    _debugSerial->println("start: " + String(startIndex) + "  end: " + String(endIndex));
-                }
-                int j = 0;
-                for (int i = startIndex; i < endIndex + 4; i++)
-                {
-                    tmp_buffer[j++] = buffer_hsp24[i];
-                }
-                // 解析数组
-                int lastFrameStart = -1;
-                int lastFrameEnd = -1;
-                int tmp_bufferSize = sizeof(tmp_buffer);
-                for (int i = tmp_bufferSize - 4; i >= 0; i--)
-                {
-                    if (tmp_buffer[i] == 0xFD && tmp_buffer[i + 1] == 0xFC && tmp_buffer[i + 2] == 0xFB && tmp_buffer[i + 3] == 0xFA && lastFrameStart == -1)
-                    {
-                        lastFrameStart = i;
-                    }
-                    if (tmp_buffer[i] == 0x04 && tmp_buffer[i + 1] == 0x03 && tmp_buffer[i + 2] == 0x02 && tmp_buffer[i + 3] == 0x01 && lastFrameEnd == -1)
-                    {
-                        lastFrameEnd = i;
-                    }
-                }
+                buffer_hsp24[bufferIndex_hsp24] = _serial->read();
+                _debugSerial->println(buffer_hsp24[bufferIndex_hsp24], HEX);
+                bufferIndex_hsp24++;
 
-                finalBuffer = new uint8_t[(endIndex + 4) - startIndex];
-                if (lastFrameStart != -1 && lastFrameEnd != -1 && lastFrameStart < lastFrameEnd)
+                // 检查是否收到完整的帧
+                int startIndex = findSequence(buffer_hsp24, bufferIndex_hsp24, frameAskStart, 4);
+                int endIndex = findSequence(buffer_hsp24, bufferIndex_hsp24, frameAskEnd, 4);
+
+                // static uint8_t finalBuffer[128];
+                uint8_t *finalBuffer = nullptr;
+                // 接收到完整帧
+                if (startIndex != -1 && endIndex != -1 && endIndex > startIndex)
                 {
+                    uint8_t tmp_buffer[(endIndex + 4) - startIndex];
+                    if (_debugSerial != nullptr)
+                    {
+                        _debugSerial->println("start: " + String(startIndex) + "  end: " + String(endIndex));
+                    }
                     int j = 0;
-                    for (int i = lastFrameStart; i <= lastFrameEnd + 3; i++)
+                    for (int i = startIndex; i < endIndex + 4; i++)
                     {
-                        finalBuffer[j++] = tmp_buffer[i];
+                        tmp_buffer[j++] = buffer_hsp24[i];
                     }
-                    // _debugSerial->println("finnsh!!!");
-                    dataResult.length = (endIndex + 4) - startIndex;
-                    dataResult.resultBuffer = finalBuffer;
+                    // 解析数组
+                    // int lastFrameStart = -1;
+                    // int lastFrameEnd = -1;
+                    // int tmp_bufferSize = sizeof(tmp_buffer);
+                    // for (int i = tmp_bufferSize - 4; i >= 0; i--)
+                    // {
+                    //     if (tmp_buffer[i] == 0xFD && tmp_buffer[i + 1] == 0xFC && tmp_buffer[i + 2] == 0xFB && tmp_buffer[i + 3] == 0xFA && lastFrameStart == -1)
+                    //     {
+                    //         lastFrameStart = i;
+                    //     }
+                    //     if (tmp_buffer[i] == 0x04 && tmp_buffer[i + 1] == 0x03 && tmp_buffer[i + 2] == 0x02 && tmp_buffer[i + 3] == 0x01 && lastFrameEnd == -1)
+                    //     {
+                    //         lastFrameEnd = i;
+                    //     }
+                    // }
 
-                    if (_debugSerial != nullptr && _debugSerial->available() > 0)
-                    {
-                        _debugSerial->println("resultBuffer: ");
+                    // finalBuffer = new uint8_t[(endIndex + 4) - startIndex];
+                    // if (lastFrameStart != -1 && lastFrameEnd != -1 && lastFrameStart < lastFrameEnd)
+                    // {
+                    //     int j = 0;
+                    //     for (int i = lastFrameStart; i <= lastFrameEnd + 3; i++)
+                    //     {
+                    //         finalBuffer[j++] = tmp_buffer[i];
+                    //     }
+                    //     _debugSerial->println("finnsh!!!");
+                        dataResult.length = sizeof(tmp_buffer);
+                        dataResult.resultBuffer = tmp_buffer;
 
-                        for (int i = 0; i < dataResult.length; i++)
+                        if (_debugSerial != nullptr)
                         {
-                            if (dataResult.resultBuffer[i] < 0x10)
-                                _debugSerial->print("0");
-                            _debugSerial->print(dataResult.resultBuffer[i], HEX); // 打印每一个byte，您可以根据需要调整格式
-                            _debugSerial->print(" ");
+                            _debugSerial->println("resultBuffer: ");
+
+                            for (int i = 0; i < dataResult.length; i++)
+                            {
+                                if (dataResult.resultBuffer[i] < 0x10)
+                                    _debugSerial->print("0");
+                                _debugSerial->print(dataResult.resultBuffer[i], HEX); // 打印每一个byte，您可以根据需要调整格式
+                                _debugSerial->print(" ");
+                            }
+                            _debugSerial->println("");
+
+                            _debugSerial->println("length: " + String(dataResult.length));
                         }
-                        _debugSerial->println("");
+                        return dataResult;
+                    // }
 
-                        _debugSerial->println("length: " + String(dataResult.length));
-                    }
-                    return dataResult;
-                }
-                else
-                {
-                    // 如果帧不完整或太短，则清空finalBuffer
-                    memset(finalBuffer, -1, sizeof(finalBuffer));
-                    if (_debugSerial != nullptr && _debugSerial->available() > 0)
+                    // 获取数组长度
+                    // int finalBufferSize = (lastFrameEnd + 4) - lastFrameStart;
+
+                    // 清除缓冲区
+                    int bytesToMove = bufferIndex_hsp24 - (endIndex + 4);
+                    for (int i = 0; i < bytesToMove; i++)
                     {
-                        _debugSerial->println("error!!!");
+                        buffer_hsp24[i] = buffer_hsp24[endIndex + 4 + i];
                     }
-                    dataResult.length = -1;
-                    return dataResult;
+                    bufferIndex_hsp24 = bytesToMove;
                 }
-                // 解析数组结束
-
-                // 获取数组长度
-                int finalBufferSize = (lastFrameEnd + 4) - lastFrameStart;
-
-                // 清除缓冲区
-                int bytesToMove = bufferIndex_hsp24 - (endIndex + 4);
-                for (int i = 0; i < bytesToMove; i++)
-                {
-                    buffer_hsp24[i] = buffer_hsp24[endIndex + 4 + i];
-                }
-                bufferIndex_hsp24 = bytesToMove;
+                // else
+                // {
+                //     // 如果帧不完整或太短，则清空finalBuffer
+                //     if (_debugSerial != nullptr)
+                //     {
+                //         _debugSerial->println("error!!!");
+                //     }
+                //     dataResult.length = -1;
+                //     return dataResult;
+                // }
             }
+            startTime = millis();
+        }
+
+        tryTimes++;
+        lastSendTime = millis(); // 更新发送时间
+        if (_debugSerial != nullptr)
+        {
+            _debugSerial->println("times: " + String(tryTimes));
         }
 
         if (millis() - startTime > 6000 || tryTimes > 6) // 超过3秒等待时间
@@ -1007,6 +1012,8 @@ Seeed_HSP24::AskStatus Seeed_HSP24::disableEngineeringModel()
     }
 }
 
+
+// 返回seq数组在arr数组的第一个元素的索引值
 int Seeed_HSP24::findSequence(byte *arr, int arrLen, const byte *seq, int seqLen)
 {
     for (int i = 0; i < arrLen - seqLen + 1; i++)
