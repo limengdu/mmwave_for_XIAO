@@ -12,16 +12,19 @@ SoftwareSerial COMSerial(D2, D3);
 #define ShowSerial Serial
 
 // Initialising the radar configuration
-Seeed_HSP24 xiao_config(COMSerial, ShowSerial);
-//Seeed_HSP24 xiao_config(COMSerial);
+// Seeed_HSP24 xiao_config(COMSerial, ShowSerial);
+Seeed_HSP24 xiao_config(COMSerial);
 
 Seeed_HSP24::RadarStatus radarStatus;
 
 void setup() {
-  COMSerial.begin(256000);
-  ShowSerial.begin(115200);
+  COMSerial.begin(9600);
+  ShowSerial.begin(9600);
+  delay(500);
 
   ShowSerial.println("Programme Starting!");
+
+  xiao_config.enableEngineeringModel();
 }
 
 void loop() {
@@ -32,15 +35,15 @@ void loop() {
   do {
     radarStatus = xiao_config.getStatus();
     retryCount++;
-//    ShowSerial.println(radarStatus.distance);
   } while (radarStatus.distance == -1 && retryCount < MAX_RETRIES);
 
   //Parses radar status and prints results from debug serial port
   if (radarStatus.distance != -1) {
     ShowSerial.print("Status: " + String(targetStatusToString(radarStatus.targetStatus)) + "  ----   ");
     ShowSerial.println("Distance: " + String(radarStatus.distance) + "  Mode: " + String(radarStatus.radarMode));
-    ShowSerial.print("Move: ");
+    
     if (radarStatus.radarMode == 1) {
+      ShowSerial.print("Move: ");
       for (int i = 0; i < 9; i++) {
         ShowSerial.print(String(radarStatus.radarMovePower.moveGate[i]) + "  ,");
       }
