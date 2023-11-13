@@ -228,15 +228,6 @@ int Seeed_HSP24::getVer()
     return sendATCommandWithExit("at+ver=?");
 }
 
-int Seeed_HSP24::setNetwork(String ssid, String password)
-{
-    enterATMode(); // 进入AT模式
-    sendATCommand("at+netmode=2");
-    sendATCommand("at+wifi_conf=" + ssid + ",none," + password);
-    sendATCommandWithExit("at+net_commit=1");
-    return 1;
-}
-
 Seeed_HSP24::TargetStatus status = Seeed_HSP24::TargetStatus::NoTarget;
 
 // 主动上报

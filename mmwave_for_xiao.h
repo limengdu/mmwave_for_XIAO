@@ -15,7 +15,6 @@ class Seeed_HSP24
         int enterATMode();                                                    // 让模块进入at模式，成功：1 失败：0
         int exitATMode();                                                     // 让模块退出at模式,成功：1 失败：0
         int getVer();                                                         // 获取版本号
-        int setNetwork(String ssid, String password);                         // 设置模块联网，作为STA，成功：1 失败：0
 
         static const int FRAME_START_SIZE = 4;
         static const int FRAME_END_SIZE = 4;
@@ -122,8 +121,6 @@ class Seeed_HSP24
 
         int bufferIndex_hsp24;
         int findSequence(byte *arr, int arrLen, const byte *seq, int seqLen);
-
-    protected:
         
 };
 
