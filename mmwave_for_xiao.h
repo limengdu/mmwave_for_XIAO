@@ -48,7 +48,7 @@ class Seeed_HSP24
             NoTarget = 0x00,     // 没有目标
             MovingTarget = 0x01, // 移动目标
             StaticTarget = 0x02, // 静止目标
-            BothTargets = 0x03,
+            BothTargets = 0x03,  // 可以理解为运动，指的是设置的运动和静止阈值都达到了设定值以上
             ErrorFrame = 0x04 // 状态获取失败
         };
 

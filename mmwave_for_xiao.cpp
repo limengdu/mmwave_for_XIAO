@@ -359,6 +359,36 @@ Seeed_HSP24::RadarStatus Seeed_HSP24::getStatus()
             radarStatus.distance = distance;
 
             // 提取距离门数据
+            for(int i = 0; i < 9; i++) {
+                radarStatus.radarMovePower.moveGate[i] = tmp_buffer[i + 19];
+            }
+            if (_debugSerial != nullptr)
+            {
+                _debugSerial->print("move energy:");
+                for(int j = 0; j < 9; j++){
+                    _debugSerial->print(" " + String(radarStatus.radarMovePower.moveGate[j]) + ",");
+                }
+                _debugSerial->println("");
+            }
+
+            for(int i = 0; i < 9; i++) {
+                radarStatus.radarStaticPower.staticGate[i] = tmp_buffer[i + 28];
+            }
+            if (_debugSerial != nullptr)
+            {
+                _debugSerial->print("static energy:");
+                for(int j = 0; j < 9; j++){
+                    _debugSerial->print(" " + String(radarStatus.radarStaticPower.staticGate[j]) + ",");
+                }
+                _debugSerial->println("");
+            }
+
+            // 提取光敏值
+            radarStatus.photosensitive = tmp_buffer[37];
+            if (_debugSerial != nullptr)
+            {
+                _debugSerial->println("photosensitive: " + String(radarStatus.photosensitive));
+            }
             
 
             if(_debugSerial != nullptr)

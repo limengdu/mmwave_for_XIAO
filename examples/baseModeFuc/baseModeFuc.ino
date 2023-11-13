@@ -35,11 +35,11 @@ void loop() {
   do {
     radarStatus = xiao_config.getStatus();
     retryCount++;
-  } while (radarStatus.distance == -1 && retryCount < MAX_RETRIES);
+  } while (radarStatus.targetStatus == Seeed_HSP24::TargetStatus::ErrorFrame && retryCount < MAX_RETRIES);
 
   //Parses radar status and prints results from debug serial port
-  if (radarStatus.distance != -1) {
-    ShowSerial.print("Status: " + String(targetStatusToString(radarStatus.targetStatus)) + "  ----   ");
+  if (radarStatus.targetStatus != Seeed_HSP24::TargetStatus::ErrorFrame) {
+    ShowSerial.print("Status: " + String(targetStatusToString(radarStatus.targetStatus)) + " ---- ");
     ShowSerial.println("Distance: " + String(radarStatus.distance) + "  Mode: " + String(radarStatus.radarMode));
   }
   delay(200);
