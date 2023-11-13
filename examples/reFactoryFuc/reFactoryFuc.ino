@@ -21,7 +21,8 @@ void setup() {
   COMSerial.begin(9600);
   ShowSerial.begin(9600);
   while(!ShowSerial);                   // Turn on the serial monitor and start executing
-
+  delay(500);
+  
   ShowSerial.println("Programme Starting!");
 
   ShowSerial.print("Sensor Software Version: ");
@@ -29,9 +30,9 @@ void setup() {
 
   radarStatus = xiao_config.getConfig();
   if (radarStatus.detectionDistance != -1) {
-    ShowSerial.println("Detection Distance: " + String(radarStatus.detectionDistance) + " mm ");
-    ShowSerial.println("Moveing Set Distance: " + String(radarStatus.moveSetDistance) + " mm ");
-    ShowSerial.println("Static Set Distance: " + String(radarStatus.staticSetDistance) + " mm ");
+    ShowSerial.println("Detection Distance: " + String(radarStatus.detectionDistance) + " m ");
+    ShowSerial.println("Moveing Set Distance: " + String(radarStatus.moveSetDistance) + " m ");
+    ShowSerial.println("Static Set Distance: " + String(radarStatus.staticSetDistance) + " m ");
     ShowSerial.println("No Target Duration Time: " + String(radarStatus.noTargrtduration) + " seconds ");
   }
   else ShowSerial.println("Failed to get configuration information, please retry.");
@@ -41,7 +42,7 @@ void setup() {
    * * the baud rate to 9600 before using XIAO!
    * */
   xiao_config.refactoryRadar();
-  xiao_config.rebootRadar();                // Reboot the Sensor
+//   xiao_config.rebootRadar();                // Reboot the Sensor
 }
 
 void loop() {}
