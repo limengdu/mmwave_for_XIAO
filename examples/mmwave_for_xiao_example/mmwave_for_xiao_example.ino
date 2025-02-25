@@ -18,7 +18,9 @@ Seeed_HSP24 xiao_config(COMSerial, ShowSerial);
 Seeed_HSP24::RadarStatus radarStatus;
 
 void setup() {
-  COMSerial.begin(256000);
+  /* Be sure to change the baud rate for radar reporting to 9600 before using this routine, 
+  refer to the wiki: https://wiki.seeedstudio.com/mmwave_for_xiao_arduino/#xiao-example */
+  COMSerial.begin(9600);
   ShowSerial.begin(115200);
 
   ShowSerial.println("Programme Starting!");
