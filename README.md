@@ -146,8 +146,8 @@ Before we get started developing a sketch, let's look at the available functions
         - **sendDataLength**: The length of the command frame sent.
     
     - **Return**:
-        - **resultBuffer**: Points to a dynamically allocated array.
-        - **length**: Length of the array.
+        - **resultBuffer**: Pointer to the last command reply, stored in a library-owned buffer. It stays valid until the next `sendCommand()` call on the same object. Read it only when `length` covers every index you use (index N requires `length >= N+1`).
+        - **length**: Number of valid bytes in `resultBuffer`. Negative when the module did not return a complete frame.
 
 - `AskStatus setDetectionDistance(int distance,int times)` —— Configure the maximum distance gate and unoccupied duration with this function.
     - **Input Parameters**:
@@ -264,8 +264,8 @@ class Seeed_HSP24
         // Used to return the result of an issued command
         struct DataResult
         {
-            byte *resultBuffer; // Points to a dynamically allocated array
-            int length;         // Length of the array
+            byte *resultBuffer; // Library-owned buffer; valid until the next sendCommand()
+            int length;         // Valid byte count; negative when no complete reply arrived
         };
 };
 ```

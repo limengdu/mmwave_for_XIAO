@@ -11,6 +11,7 @@ Seeed_HSP24::Seeed_HSP24(Stream &serial)
     isInATMode(0),
     bufferIndex_hsp24(0)
 {
+    memset(commandResultBuffer, 0, sizeof(commandResultBuffer));
 }
 
 Seeed_HSP24::Seeed_HSP24(Stream &serial, Stream &debugSerial)
@@ -21,6 +22,7 @@ Seeed_HSP24::Seeed_HSP24(Stream &serial, Stream &debugSerial)
     isInATMode(0),
     bufferIndex_hsp24(0)
 {
+    memset(commandResultBuffer, 0, sizeof(commandResultBuffer));
 }
 
 // B35
@@ -481,6 +483,11 @@ Seeed_HSP24::RadarStatus Seeed_HSP24::getStatus()
     return radarStatus;
 }
 
+bool Seeed_HSP24::commandResultReady(const DataResult &result, int minLength) const
+{
+    return result.resultBuffer != nullptr && result.length >= minLength;
+}
+
 Seeed_HSP24::DataResult Seeed_HSP24::sendCommand(const byte *sendData, int sendDataLength)
 {
     bufferIndex_hsp24 = 0; // 重置缓冲区索引
@@ -496,6 +503,7 @@ Seeed_HSP24::DataResult Seeed_HSP24::sendCommand(const byte *sendData, int sendD
     const unsigned long sendInterval = 1000; // 发送间隔，1000ms即1秒
                                              // 清空缓冲区
     memset(buffer_hsp24, 0, sizeof(buffer_hsp24));
+    memset(commandResultBuffer, 0, sizeof(commandResultBuffer));
     bufferIndex_hsp24 = 0;
     while (true)
     {
@@ -521,26 +529,29 @@ Seeed_HSP24::DataResult Seeed_HSP24::sendCommand(const byte *sendData, int sendD
             int startIndex = findSequence(buffer_hsp24, bufferIndex_hsp24, frameAskStart, 4);
             int endIndex = findSequence(buffer_hsp24, bufferIndex_hsp24, frameAskEnd, 4);
 
-            // static uint8_t finalBuffer[128];
-            uint8_t finalBuffer[(endIndex + 4) - startIndex];
             // 接收到完整帧
             if (startIndex != -1 && endIndex != -1 && endIndex > startIndex)
             {
-                uint8_t tmp_buffer[(endIndex + 4) - startIndex];
+                const int frameLength = (endIndex + 4) - startIndex;
+                if (frameLength < (FRAME_START_SIZE + FRAME_END_SIZE) || frameLength > BUFFER_SIZE)
+                {
+                    return dataResult;
+                }
+
+                byte tmp_buffer[BUFFER_SIZE];
                 if (_debugSerial != nullptr && _debugSerial->available() > 0)
                 {
                     _debugSerial->println("start: " + String(startIndex) + "  end: " + String(endIndex));
                 }
-                int j = 0;
+                int tmpLength = 0;
                 for (int i = startIndex; i < endIndex + 4; i++)
                 {
-                    tmp_buffer[j++] = buffer_hsp24[i];
+                    tmp_buffer[tmpLength++] = buffer_hsp24[i];
                 }
                 // 解析数组
                 int lastFrameStart = -1;
                 int lastFrameEnd = -1;
-                int tmp_bufferSize = sizeof(tmp_buffer);
-                for (int i = tmp_bufferSize - 4; i >= 0; i--)
+                for (int i = tmpLength - 4; i >= 0; i--)
                 {
                     if (tmp_buffer[i] == 0xFD && tmp_buffer[i + 1] == 0xFC && tmp_buffer[i + 2] == 0xFB && tmp_buffer[i + 3] == 0xFA && lastFrameStart == -1)
                     {
@@ -554,14 +565,13 @@ Seeed_HSP24::DataResult Seeed_HSP24::sendCommand(const byte *sendData, int sendD
 
                 if (lastFrameStart != -1 && lastFrameEnd != -1 && lastFrameStart < lastFrameEnd)
                 {
-                    int j = 0;
-                    for (int i = lastFrameStart; i <= lastFrameEnd + 3; i++)
+                    int copied = 0;
+                    for (int i = lastFrameStart; i <= lastFrameEnd + 3 && copied < BUFFER_SIZE; i++)
                     {
-                        finalBuffer[j++] = tmp_buffer[i];
+                        commandResultBuffer[copied++] = tmp_buffer[i];
                     }
-                    // _debugSerial->println("finnsh!!!");
-                    dataResult.length = (endIndex + 4) - startIndex;
-                    dataResult.resultBuffer = finalBuffer;
+                    dataResult.resultBuffer = commandResultBuffer;
+                    dataResult.length = copied;
 
                     if (_debugSerial != nullptr && _debugSerial->available() > 0)
                     {
@@ -582,34 +592,17 @@ Seeed_HSP24::DataResult Seeed_HSP24::sendCommand(const byte *sendData, int sendD
                 }
                 else
                 {
-                    // 如果帧不完整或太短，则清空finalBuffer
-                    memset(finalBuffer, -1, sizeof(finalBuffer));
                     if (_debugSerial != nullptr && _debugSerial->available() > 0)
                     {
                         _debugSerial->println("error!!!");
                     }
-                    dataResult.length = -1;
                     return dataResult;
                 }
-                // 解析数组结束
-
-                // 获取数组长度
-                int finalBufferSize = (lastFrameEnd + 4) - lastFrameStart;
-
-                // 清除缓冲区
-                int bytesToMove = bufferIndex_hsp24 - (endIndex + 4);
-                for (int i = 0; i < bytesToMove; i++)
-                {
-                    buffer_hsp24[i] = buffer_hsp24[endIndex + 4 + i];
-                }
-                bufferIndex_hsp24 = bytesToMove;
             }
         }
 
         if (millis() - startTime > 6000 || tryTimes > 6) // 超过3秒等待时间
         {
-            // return Seeed_HSP24::AskStatus::Error; // 超时，未成功进入AT模式
-            dataResult.length = -1;
             return dataResult;
         }
     }
@@ -621,14 +614,11 @@ Seeed_HSP24::AskStatus Seeed_HSP24::enableConfigMode()
     byte sendData[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x04, 0x00, 0xFF, 0x00, 0x01, 0x00, 0x04, 0x03, 0x02, 0x01};
     int sendDataLength = sizeof(sendData);
     dataResult = sendCommand(sendData, sendDataLength);
-    if (dataResult.resultBuffer[8] == 0)
+    if (commandResultReady(dataResult, COMMAND_ACK_MIN_LENGTH) && dataResult.resultBuffer[8] == 0)
     {
         return Seeed_HSP24::AskStatus::Success;
     }
-    else
-    {
-        return Seeed_HSP24::AskStatus::Error;
-    }
+    return Seeed_HSP24::AskStatus::Error;
 }
 
 Seeed_HSP24::AskStatus Seeed_HSP24::disableConfigMode()
@@ -637,14 +627,11 @@ Seeed_HSP24::AskStatus Seeed_HSP24::disableConfigMode()
     byte sendData[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0xFE, 0x00, 0x04, 0x03, 0x02, 0x01};
     int sendDataLength = sizeof(sendData);
     dataResult = sendCommand(sendData, sendDataLength);
-    if (dataResult.resultBuffer[8] == 0)
+    if (commandResultReady(dataResult, COMMAND_ACK_MIN_LENGTH) && dataResult.resultBuffer[8] == 0)
     {
         return Seeed_HSP24::AskStatus::Success;
     }
-    else
-    {
-        return Seeed_HSP24::AskStatus::Error;
-    }
+    return Seeed_HSP24::AskStatus::Error;
 }
 
 String Seeed_HSP24::getVersion()
@@ -657,7 +644,8 @@ String Seeed_HSP24::getVersion()
     {
         dataResult = sendCommand(sendData, sendDataLength);
 
-        if (dataResult.resultBuffer[7] == 0x01 && dataResult.resultBuffer[8] == 0x00)
+        if (commandResultReady(dataResult, COMMAND_VERSION_MIN_LENGTH) &&
+            dataResult.resultBuffer[7] == 0x01 && dataResult.resultBuffer[8] == 0x00)
         {
             char versionBuffer[32];
             sprintf(versionBuffer, "V%d.%02d.%06d",
@@ -707,7 +695,8 @@ Seeed_HSP24::AskStatus Seeed_HSP24::setDetectionDistance(int distance, int times
         {
             dataResult = sendCommand(sendData, sendDataLength);
 
-            if (dataResult.resultBuffer[7] == 0x01 && dataResult.resultBuffer[8] == 0x00)
+            if (commandResultReady(dataResult, COMMAND_ACK_MIN_LENGTH) &&
+                dataResult.resultBuffer[7] == 0x01 && dataResult.resultBuffer[8] == 0x00)
             {
                 disableConfigMode();
 
@@ -761,7 +750,8 @@ Seeed_HSP24::AskStatus Seeed_HSP24::setGatePower(int gate, int movePower, int st
         {
             dataResult = sendCommand(sendData, sendDataLength);
 
-            if (dataResult.resultBuffer[7] == 0x01 && dataResult.resultBuffer[8] == 0x00)
+            if (commandResultReady(dataResult, COMMAND_ACK_MIN_LENGTH) &&
+                dataResult.resultBuffer[7] == 0x01 && dataResult.resultBuffer[8] == 0x00)
             {
                 disableConfigMode();
 
@@ -795,7 +785,8 @@ Seeed_HSP24::RadarStatus Seeed_HSP24::getConfig()
     {
         dataResult = sendCommand(sendData, sendDataLength);
 
-        if (dataResult.resultBuffer[7] == 0x01 && dataResult.resultBuffer[8] == 0x00)
+        if (commandResultReady(dataResult, COMMAND_CONFIG_MIN_LENGTH) &&
+            dataResult.resultBuffer[7] == 0x01 && dataResult.resultBuffer[8] == 0x00)
         {
             radarStatus.detectionDistance = dataResult.resultBuffer[11];
             radarStatus.moveSetDistance = dataResult.resultBuffer[12];
@@ -846,7 +837,7 @@ Seeed_HSP24::AskStatus Seeed_HSP24::setResolution(int resolution)
         {
             dataResult = sendCommand(sendData, sendDataLength);
 
-            if (dataResult.resultBuffer[8] == 0x00)
+            if (commandResultReady(dataResult, COMMAND_ACK_MIN_LENGTH) && dataResult.resultBuffer[8] == 0x00)
             {
                 rebootRadar();
                 return Seeed_HSP24::AskStatus::Success;
@@ -879,7 +870,7 @@ Seeed_HSP24::RadarStatus Seeed_HSP24::getResolution()
     {
         dataResult = sendCommand(sendData, sendDataLength);
 
-        if (dataResult.resultBuffer[8] == 0x00)
+        if (commandResultReady(dataResult, COMMAND_RESOLUTION_MIN_LENGTH) && dataResult.resultBuffer[8] == 0x00)
         {
             radarStatus.resolution = dataResult.resultBuffer[10];
 
@@ -910,7 +901,7 @@ Seeed_HSP24::AskStatus Seeed_HSP24::rebootRadar()
     {
         dataResult = sendCommand(sendData, sendDataLength);
 
-        if (dataResult.resultBuffer[8] == 0x00)
+        if (commandResultReady(dataResult, COMMAND_ACK_MIN_LENGTH) && dataResult.resultBuffer[8] == 0x00)
         {
             return Seeed_HSP24::AskStatus::Success;
         }
@@ -935,7 +926,7 @@ Seeed_HSP24::AskStatus Seeed_HSP24::refactoryRadar()
     {
         dataResult = sendCommand(sendData, sendDataLength);
 
-        if (dataResult.resultBuffer[8] == 0x00)
+        if (commandResultReady(dataResult, COMMAND_ACK_MIN_LENGTH) && dataResult.resultBuffer[8] == 0x00)
         {
             rebootRadar();
             return Seeed_HSP24::AskStatus::Success;
@@ -962,7 +953,7 @@ Seeed_HSP24::AskStatus Seeed_HSP24::enableEngineeringModel()
     {
         dataResult = sendCommand(sendData, sendDataLength);
 
-        if (dataResult.resultBuffer[8] == 0x00)
+        if (commandResultReady(dataResult, COMMAND_ACK_MIN_LENGTH) && dataResult.resultBuffer[8] == 0x00)
         {
             disableConfigMode();
             return Seeed_HSP24::AskStatus::Success;
@@ -989,7 +980,7 @@ Seeed_HSP24::AskStatus Seeed_HSP24::disableEngineeringModel()
     {
         dataResult = sendCommand(sendData, sendDataLength);
 
-        if (dataResult.resultBuffer[8] == 0x00)
+        if (commandResultReady(dataResult, COMMAND_ACK_MIN_LENGTH) && dataResult.resultBuffer[8] == 0x00)
         {
             disableConfigMode();
             return Seeed_HSP24::AskStatus::Success;

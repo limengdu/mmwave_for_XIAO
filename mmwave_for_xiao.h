@@ -68,11 +68,14 @@ class Seeed_HSP24
             int photosensitive = -1;                                                                          // 光敏 0-255
         };
 
-        // 用来返回下发指令的结果
+        // Reply from sendCommand(). resultBuffer is readable only when it is
+        // non-null and length covers every index you access (index N needs length >= N+1).
         struct DataResult
         {
-            byte *resultBuffer; // 指向动态分配的数组
-            int length;         // 数组的长度
+            byte *resultBuffer; // Library-owned buffer; valid until the next sendCommand()
+            int length;         // Valid byte count; negative when no complete reply arrived
+
+            DataResult() : resultBuffer(nullptr), length(-1) {}
         };
 
         // 获取雷达感应状态
@@ -119,9 +122,16 @@ class Seeed_HSP24
         int sendATCommandWithExit(String command);
 
         byte buffer_hsp24[BUFFER_SIZE];
+        byte commandResultBuffer[BUFFER_SIZE];
 
         int bufferIndex_hsp24;
         int findSequence(byte *arr, int arrLen, const byte *seq, int seqLen);
+        bool commandResultReady(const DataResult &result, int minLength) const;
+
+        static const int COMMAND_ACK_MIN_LENGTH = 9;
+        static const int COMMAND_VERSION_MIN_LENGTH = 17;
+        static const int COMMAND_CONFIG_MIN_LENGTH = 34;
+        static const int COMMAND_RESOLUTION_MIN_LENGTH = 11;
 
     protected:
         
