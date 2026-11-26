@@ -30,6 +30,7 @@
 *.exe
 *.out
 *.app
+tests/test_sendcommand_safety
 
 .vscode
 .DS_Store
